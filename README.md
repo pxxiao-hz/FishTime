@@ -20,7 +20,7 @@ FishTime 坚持“本地优先”：计时记录默认只保存在电脑上，�
 
 当前发布包面向 **Apple Silicon（M 系列）Mac**，需要 **macOS 10.15 或更高版本**。
 
-1. 前往 [Releases](https://github.com/pxxiao-hz/FishTime/releases/latest)，下载 `FishTime_4.0.0_aarch64.dmg`。
+1. 前往 [Releases](https://github.com/pxxiao-hz/FishTime/releases/latest)，下载最新版本的 Apple Silicon DMG。
 2. 双击打开 DMG，把 `FishTime.app` 拖到“应用程序（Applications）”文件夹。
 3. 首次打开时，因当前版本没有 Apple Developer 证书和公证，macOS 可能提示“无法验证开发者”。请在“应用程序”中**按住 Control 点击（或右键点击）FishTime → 打开 → 打开**；如仍被阻止，请前往“系统设置 → 隐私与安全性”，选择“仍要打开”。
 4. 从旧版迁移时：先在旧版 FishTime 中“导出数据”，再在新版本的设置中选择“导入数据”并选取 JSON 文件。
@@ -61,6 +61,10 @@ src-tauri/target/release/bundle/dmg/
 - `scripts/prepare-web.js`：生成最小化的 Tauri 前端资源目录
 
 ## 更新日志
+
+### 4.0.1
+
+- 恢复旧版 FishTime 的 macOS 应用图标，并在 Tauri 打包配置中显式声明图标资源。
 
 ### 4.0.0
 

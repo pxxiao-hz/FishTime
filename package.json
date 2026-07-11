@@ -1,6 +1,6 @@
 {
   "name": "fishtime",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "工作时长计时器桌面应用",
   "productName": "FishTime",
   "scripts": {
