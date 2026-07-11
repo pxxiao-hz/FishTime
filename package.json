@@ -1,0 +1,18 @@
+{
+  "name": "fishtime",
+  "version": "4.0.0",
+  "description": "工作时长计时器桌面应用",
+  "productName": "FishTime",
+  "scripts": {
+    "prepare:web": "node scripts/prepare-web.js",
+    "start": "tauri dev",
+    "dist": "tauri build",
+    "tauri": "tauri"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.8.0"
+  }
+}

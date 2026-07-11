@@ -1,0 +1,12 @@
+node_modules/
+.tauri-dist/
+src-tauri/target/
+dist/
+.DS_Store
+.codex/
+.agents/
+.env
+.env.*
+!.env.example
+*.dmg
+*.app

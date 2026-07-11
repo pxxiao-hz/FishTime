@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>工作时长计时器</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1 data-i18n="app.title">工作时长计时器</h1>
+      <div class="datetime">
+        <span id="todayText"></span>
+        <span id="nowTime"></span>
+      </div>
+    </header>
+
+    <section class="toggle-bar">
+      <div class="mode-toggle">
+        <button id="modeDefaultBtn" class="mode-btn mode-default" aria-label="默认" title="默认"></button>
+        <button id="modeColorBtn" class="mode-btn mode-color" aria-label="色块" title="色块"></button>
+        <button id="modeDarkBtn" class="mode-btn mode-dark" aria-label="黑夜" title="黑夜"></button>
+      </div>
+      <div class="page-toggle">
+        <button id="pageHomeBtn" class="page-btn active" data-i18n="nav.home">主页</button>
+        <button id="pageStatsBtn" class="page-btn" data-i18n="nav.stats">Statistics</button>
+      </div>
+      <div class="lang-toggle">
+        <button id="langToggleBtn" class="lang-btn" type="button" aria-label="切换语言" title="切换语言" data-short="中"></button>
+      </div>
+    </section>
+
+    <section class="quote-card page-section" data-page="home">
+      <span class="quote-label" data-i18n="quote.label">今日一句</span>
+      <p id="quoteText" class="quote-text"></p>
+    </section>
+
+    <section class="controls page-section" data-page="home">
+      <button id="startBtn" data-i18n="action.start">开始工作</button>
+      <button id="pauseBtn" data-i18n="action.pause" disabled>暂停工作</button>
+      <button id="stopBtn" data-i18n="action.stop" disabled>结束工作</button>
+      <div class="status">
+        <span id="sessionStatus" data-i18n="status.idle">当前未在计时</span>
+        <span id="sessionDuration"></span>
+      </div>
+      <div class="extra-fields">
+        <div class="field">
+          <label for="tagInput" data-i18n="label.tag">Tag：</label>
+          <div class="tag-input-wrapper">
+            <div id="tagChip" class="tag-chip" style="display:none">
+              <span id="tagChipText" class="tag-chip-text"></span>
+              <button type="button" id="tagChipClear">×</button>
+            </div>
+            <input id="tagInput" type="text" placeholder="例如：Python / 单细胞" data-i18n-placeholder="placeholder.tag">
+            <div id="tagSuggestions" class="tag-suggestions"></div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="noteInput" data-i18n="label.note">备注：</label>
+          <input id="noteInput" type="text" placeholder="这段时间做了什么" data-i18n-placeholder="placeholder.note">
+        </div>
+      </div>
+    </section>
+
+    <section class="summary page-section" data-page="home">
+      <div class="summary-item">
+        <h2 data-i18n="summary.today">今天工作时长</h2>
+        <p id="todayTotal">0 小时 0 分钟</p>
+      </div>
+      <div class="summary-item">
+        <h2 data-i18n="summary.monthToDate">本月截至今天</h2>
+        <p id="monthTotal">0 小时 0 分钟</p>
+      </div>
+    </section>
+
+    <section class="filters page-section" data-page="stats">
+      <h2 data-i18n="filters.title">筛选统计</h2>
+      <div class="filter-controls">
+        <div class="filter-group" data-section="date-month">
+          <div class="filter-group-header">
+            <h3 data-i18n="filters.byDate">按日期/月份查看</h3>
+            <button type="button" id="toggleDateSection" class="toggle-btn" data-i18n="action.collapse">收起</button>
+          </div>
+          <div class="filter-group-body">
+            <div class="filter-row">
+              <label for="filterDate" data-i18n="label.date">日期：</label>
+              <input type="date" id="filterDate">
+              <button id="filterDateBtn" data-i18n="action.view">查看</button>
+            </div>
+            <p id="filterDateSummary" class="filter-summary" data-i18n="filters.pickDate">请选择日期查看统计</p>
+            <div id="filterDateAiSummary" class="ai-summary-box small" aria-live="polite"></div>
+            <table>
+              <thead>
+                <tr>
+                  <th data-i18n="table.startTime">开始时间</th>
+                  <th data-i18n="table.endTime">结束时间</th>
+                  <th data-i18n="table.duration">时长</th>
+                  <th data-i18n="table.tag">Tag</th>
+                  <th data-i18n="table.note">备注</th>
+                  <th data-i18n="table.actions">操作</th>
+                </tr>
+              </thead>
+              <tbody id="filterDateBody"></tbody>
+            </table>
+            <div class="tag-chart-wrapper">
+              <div class="chart-toggle-row">
+                <span class="chart-label" data-i18n="chart.tagDistribution">Tag 用时分布</span>
+                <div class="chart-toggle" data-chart="tagDate">
+                  <button type="button" id="tagDateBarBtn" class="toggle-btn small active" data-i18n="chart.bar">柱状图</button>
+                  <button type="button" id="tagDatePieBtn" class="toggle-btn small" data-i18n="chart.pie">饼图</button>
+                </div>
+              </div>
+              <canvas id="tagDateChart"></canvas>
+              <div class="tag-legend" id="tagDateLegend"></div>
+            </div>
+
+            <div class="filter-row">
+              <label for="filterMonth" data-i18n="label.month">月份：</label>
+              <input type="month" id="filterMonth">
+              <button id="filterMonthBtn" data-i18n="action.view">查看</button>
+            </div>
+            <p id="filterMonthSummary" class="filter-summary" data-i18n="filters.pickMonth">请选择月份查看统计</p>
+            <table>
+              <thead>
+                <tr>
+                  <th data-i18n="table.date">日期</th>
+                  <th data-i18n="table.dailyTotal">当日总时长</th>
+                </tr>
+              </thead>
+              <tbody id="filterMonthBody"></tbody>
+            </table>
+            <div class="month-chart-wrapper">
+              <canvas id="monthChart"></canvas>
+            </div>
+            <div class="tag-chart-wrapper">
+              <div class="chart-toggle-row">
+                <span class="chart-label" data-i18n="chart.tagDistribution">Tag 用时分布</span>
+                <div class="chart-toggle" data-chart="tagMonth">
+                  <button type="button" id="tagMonthBarBtn" class="toggle-btn small active" data-i18n="chart.bar">柱状图</button>
+                  <button type="button" id="tagMonthPieBtn" class="toggle-btn small" data-i18n="chart.pie">饼图</button>
+                </div>
+              </div>
+              <canvas id="tagMonthChart"></canvas>
+              <div class="tag-legend" id="tagMonthLegend"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="forecast page-section" data-page="home">
+      <div class="forecast-header">
+        <h2 data-i18n="forecast.title">本月总时长预测</h2>
+        <span id="forecastTotal" class="forecast-total">预计：0 小时 0 分钟</span>
+      </div>
+      <p id="forecastNote" class="forecast-note"></p>
+      <canvas id="forecastChart"></canvas>
+    </section>
+
+    <section class="records collapsible page-section" data-section="todayRecords" data-page="home">
+        <div class="records-header">
+          <h2 data-i18n="records.today">今天的工作记录</h2>
+          <button type="button" id="toggleTodayRecords" class="toggle-btn" data-i18n="action.collapse">收起</button>
+        </div>
+        <div class="records-body">
+        <table>
+          <thead>
+            <tr>
+              <th id="todayStartHeader" class="sortable" data-i18n="table.startTime">开始时间</th>
+              <th id="todayEndHeader" class="sortable" data-i18n="table.endTime">结束时间</th>
+              <th id="todayDurationHeader" class="sortable" data-i18n="table.duration">时长</th>
+              <th data-i18n="table.tag">Tag</th>
+              <th data-i18n="table.note">备注</th>
+              <th data-i18n="table.actions">操作</th>
+            </tr>
+          </thead>
+          <tbody id="todayRecordsBody">
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="ai-summary page-section" data-page="home">
+      <div class="records-header">
+        <h2 data-i18n="ai.title">AI 总结</h2>
+        <div class="ai-actions">
+          <button type="button" id="aiGenerateBtn" class="toggle-btn small" data-i18n="ai.generate">生成今日总结</button>
+          <button type="button" id="aiCopyBtn" class="toggle-btn small" data-i18n="ai.copy">复制</button>
+        </div>
+      </div>
+      <p id="aiSummaryStatus" class="ai-status" data-i18n="ai.statusReady">点击生成今日总结。</p>
+      <div id="aiSummaryBox" class="ai-summary-box" aria-live="polite"></div>
+    </section>
+
+    <section class="heatmap page-section" data-page="stats">
+      <div class="records-header">
+        <h2 data-i18n="heatmap.title">工作日历</h2>
+        <span id="heatmapSubtitle" class="heatmap-subtitle" data-i18n="heatmap.subtitle">本月</span>
+      </div>
+      <div class="calendar-controls">
+        <button type="button" class="toggle-btn small" data-range="month" id="calRangeMonth" data-i18n="heatmap.rangeMonth">本月</button>
+        <button type="button" class="toggle-btn small" data-range="30d" id="calRange30" data-i18n="heatmap.range30">最近 30 天</button>
+        <button type="button" class="toggle-btn small" data-range="custom" id="calRangeCustom" data-i18n="heatmap.rangeCustom">自定义</button>
+        <div class="calendar-custom" id="calCustomBox">
+          <label>
+            <span data-i18n="heatmap.customStart">开始</span>
+            <input type="date" id="calStart">
+          </label>
+          <label>
+            <span data-i18n="heatmap.customEnd">结束</span>
+            <input type="date" id="calEnd">
+          </label>
+          <button type="button" class="toggle-btn small" id="calApply" data-i18n="heatmap.apply">应用</button>
+        </div>
+      </div>
+      <div class="calendar-grid" id="calendarGrid"></div>
+      <div id="calendarLegend" class="heatmap-legend"></div>
+      <div class="calendar-details">
+        <p id="calendarSummary" class="filter-summary"></p>
+        <div id="calendarAiSummary" class="ai-summary-box small"></div>
+        <table>
+          <thead>
+            <tr>
+              <th data-i18n="table.startTime">开始时间</th>
+              <th data-i18n="table.endTime">结束时间</th>
+              <th data-i18n="table.duration">时长</th>
+              <th data-i18n="table.tag">Tag</th>
+              <th data-i18n="table.note">备注</th>
+            </tr>
+          </thead>
+          <tbody id="calendarDateBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="records collapsible page-section" data-section="monthTagRecords" data-page="stats">
+      <div class="records-header">
+        <h2 data-i18n="records.monthTag">本月 Tag 工作记录（当前月份）</h2>
+        <button type="button" id="toggleMonthTagRecords" class="toggle-btn" data-i18n="action.collapse">收起</button>
+      </div>
+      <div class="records-body">
+        <table>
+          <thead>
+            <tr>
+              <th data-i18n="table.tag">Tag</th>
+              <th id="monthTagDurationHeader" class="sortable" data-i18n="table.totalDuration">总时长</th>
+            </tr>
+          </thead>
+          <tbody id="monthTagRecordsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="records collapsible page-section" data-section="monthTotals" data-page="stats">
+      <div class="records-header">
+        <h2 data-i18n="records.monthTotals">每月总时长</h2>
+        <button type="button" id="toggleMonthTotals" class="toggle-btn" data-i18n="action.collapse">收起</button>
+      </div>
+      <div class="records-body">
+        <table>
+          <thead>
+            <tr>
+              <th data-i18n="table.month">月份</th>
+              <th data-i18n="table.totalDuration">总时长</th>
+            </tr>
+          </thead>
+          <tbody id="monthTotalsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="backup page-section" data-page="stats">
+      <h2 data-i18n="backup.title">数据备份</h2>
+      <div class="backup-actions">
+        <button id="exportDataBtn" data-i18n="backup.export">导出数据</button>
+        <button id="importDataBtn" data-i18n="backup.import">导入数据</button>
+        <button id="clearDataBtn" data-i18n="backup.clear">清空本机数据</button>
+        <input type="file" id="importFileInput" accept="application/json" style="display:none">
+      </div>
+      <p class="backup-tip" data-i18n="backup.tip">建议从旧版本中导出一次数据，再在 FishTime 中导入，之后升级版本数据将自动保留。</p>
+    </section>
+
+    <div id="editDialog" class="edit-dialog">
+      <div class="edit-dialog-content">
+        <h2 data-i18n="edit.title">编辑记录</h2>
+        <p id="editDialogTime" class="edit-dialog-time"></p>
+        <div class="edit-field">
+          <label for="editStartTimeInput" data-i18n="edit.start">开始：</label>
+          <input id="editStartTimeInput" type="time">
+        </div>
+        <div class="edit-field">
+          <label for="editEndTimeInput" data-i18n="edit.end">结束：</label>
+          <input id="editEndTimeInput" type="time">
+        </div>
+        <div class="edit-field">
+          <label for="editTagInput" data-i18n="label.tag">Tag：</label>
+          <div class="tag-input-wrapper">
+            <div id="editTagChip" class="tag-chip" style="display:none">
+              <span id="editTagChipText" class="tag-chip-text"></span>
+              <button type="button" id="editTagChipClear">×</button>
+            </div>
+            <input id="editTagInput" type="text" placeholder="例如：Python / 单细胞" data-i18n-placeholder="placeholder.tag">
+            <div id="editTagSuggestions" class="tag-suggestions small"></div>
+          </div>
+        </div>
+        <div class="edit-field">
+          <label for="editNoteInput" data-i18n="label.note">备注：</label>
+          <input id="editNoteInput" type="text" placeholder="这段时间做了什么" data-i18n-placeholder="placeholder.note">
+        </div>
+        <div class="edit-dialog-actions">
+          <button id="editCancelBtn" data-i18n="action.cancel">取消</button>
+          <button id="editSaveBtn" data-i18n="action.save">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button id="settingsBtn" class="settings-btn" type="button" aria-label="设置" title="设置"></button>
+  <div id="settingsPanel" class="settings-panel">
+    <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="settings-header">
+        <h3 id="settingsTitle" data-i18n="settings.title">设置</h3>
+        <button id="settingsCloseBtn" class="settings-close" type="button" aria-label="关闭" title="关闭">×</button>
+      </div>
+      <div class="settings-body">
+        <div class="settings-row">
+          <span class="settings-label" data-i18n="settings.language">语言</span>
+          <div class="settings-options">
+            <button type="button" data-lang-option="zh" data-i18n="lang.optionZh">中文</button>
+            <button type="button" data-lang-option="en" data-i18n="lang.optionEn">EN</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label" data-i18n="settings.theme">界面模式</span>
+          <div class="settings-options">
+            <button type="button" data-theme-option="mode-default" data-i18n="mode.default">默认</button>
+            <button type="button" data-theme-option="mode-color" data-i18n="mode.color">色块</button>
+            <button type="button" data-theme-option="mode-dark" data-i18n="mode.dark">黑夜</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label" data-i18n="settings.defaultPage">默认页面</span>
+          <div class="settings-options">
+            <button type="button" data-page-option="home" data-i18n="nav.home">主页</button>
+            <button type="button" data-page-option="stats" data-i18n="nav.stats">统计</button>
+          </div>
+        </div>
+        <div class="settings-row settings-row-wide">
+          <span class="settings-label" data-i18n="settings.workspace">工作分区</span>
+          <div class="settings-options wide workspace-row">
+            <div class="workspace-select-row">
+              <label class="settings-sub-label" for="workspaceSelect" data-i18n="settings.workspaceSelect">当前分区</label>
+              <select id="workspaceSelect"></select>
+            </div>
+            <div class="workspace-add-row">
+              <label class="settings-sub-label" for="workspaceNameInput" data-i18n="settings.workspaceAdd">新建分区</label>
+              <input id="workspaceNameInput" type="text" placeholder="输入名称，回车创建" data-i18n-placeholder="settings.workspacePlaceholder">
+              <button type="button" id="workspaceAddBtn" class="toggle-btn small" data-i18n="action.save">保存</button>
+            </div>
+          </div>
+        </div>
+        <div class="settings-row settings-row-wide">
+          <span class="settings-label" data-i18n="modules.title">模块展示</span>
+          <div class="settings-options wide modules-row">
+            <label class="module-toggle">
+              <input type="checkbox" data-module-key="homeForecast" checked>
+              <span data-i18n="modules.homeForecast">本月预测</span>
+            </label>
+            <label class="module-toggle">
+              <input type="checkbox" data-module-key="homeToday" checked>
+              <span data-i18n="modules.homeToday">今日记录</span>
+            </label>
+            <label class="module-toggle">
+              <input type="checkbox" data-module-key="homeAI" checked>
+              <span data-i18n="modules.homeAI">AI 总结</span>
+            </label>
+            <label class="module-toggle">
+              <input type="checkbox" data-module-key="statsDate" checked>
+              <span data-i18n="modules.statsDate">按日筛选</span>
+            </label>
+            <label class="module-toggle">
+              <input type="checkbox" data-module-key="statsCalendar" checked>
+              <span data-i18n="modules.statsCalendar">工作日历</span>
+            </label>
+            <label class="module-toggle">
+              <input type="checkbox" data-module-key="statsMonthTag" checked>
+              <span data-i18n="modules.statsMonthTag">本月 Tag 汇总</span>
+            </label>
+            <label class="module-toggle">
+              <input type="checkbox" data-module-key="statsMonthTotals" checked>
+              <span data-i18n="modules.statsMonthTotals">月度总时长</span>
+            </label>
+            <label class="module-toggle">
+              <input type="checkbox" data-module-key="statsBackup" checked>
+              <span data-i18n="modules.statsBackup">数据备份</span>
+            </label>
+          </div>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label" data-i18n="settings.aiProvider">AI 服务</span>
+          <div class="settings-options">
+            <button type="button" data-ai-provider="gemini" data-i18n="ai.provider.gemini">Gemini</button>
+            <button type="button" data-ai-provider="silicon" data-i18n="ai.provider.silicon">硅基流动</button>
+          </div>
+        </div>
+        <div class="settings-row settings-row-wide">
+          <span class="settings-label" data-i18n="settings.aiTitle">AI 总结</span>
+          <div class="settings-options wide">
+            <label for="aiApiKeyInput" class="settings-sub-label" data-i18n="settings.aiKey">Gemini / 硅基 API Key</label>
+            <div class="ai-key-row">
+              <input id="aiApiKeyInput" type="password" placeholder="输入 Gemini API Key" data-i18n-placeholder="settings.aiKeyPlaceholder">
+              <button type="button" id="aiSaveBtn" class="toggle-btn small" data-i18n="action.save">保存</button>
+            </div>
+            <p class="settings-hint" data-i18n="settings.aiHint">用于生成工作总结，保存在本机。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <audio id="bgmPlayer" preload="auto" loop></audio>
+  <div id="bgmFloating" class="bgm-floating">
+    <button id="bgmToggle" class="bgm-btn" title="播放/暂停" aria-label="播放或暂停背景音乐">▶︎</button>
+    <div class="bgm-info">
+      <span id="bgmTitle">BGM</span>
+    </div>
+    <button id="bgmPrev" class="bgm-btn" title="上一首" aria-label="上一首背景音乐">«</button>
+    <button id="bgmNext" class="bgm-btn" title="下一首" aria-label="下一首背景音乐">»</button>
+    <div class="bgm-volume">
+      <button id="bgmMute" class="bgm-btn" title="静音" aria-label="静音背景音乐">🔇</button>
+      <input id="bgmVolume" type="range" min="0" max="1" step="0.01" value="0.5" aria-label="背景音乐音量">
+    </div>
+    <label class="bgm-add" aria-label="添加背景音乐" title="添加背景音乐">
+      ＋
+      <input id="bgmFileInput" type="file" accept="audio/*" style="display:none">
+    </label>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>

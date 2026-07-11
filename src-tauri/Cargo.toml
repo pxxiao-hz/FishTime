@@ -1,0 +1,23 @@
+[package]
+name = "fishtime"
+version = "4.0.0"
+description = "A lightweight local work timer"
+authors = ["FishTime"]
+edition = "2021"
+
+[lib]
+name = "fishtime_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
