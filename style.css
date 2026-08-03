@@ -1125,7 +1125,8 @@ body.mode-dark textarea {
 }
 
 .edit-dialog-content {
-  background: #fff;
+  background: var(--card-bg);
+  color: var(--text-color);
   padding: 16px 20px;
   border-radius: 8px;
   min-width: 260px;
@@ -1140,7 +1141,7 @@ body.mode-dark textarea {
 
 .edit-dialog-time {
   font-size: 12px;
-  color: #666;
+  color: var(--muted-color);
   margin-bottom: 8px;
 }
 
@@ -1187,6 +1188,16 @@ body.mode-dark textarea {
 
 #editSaveBtn {
   background: #1976d2;
+  color: #fff;
+}
+
+#deleteCancelBtn {
+  background: var(--control-bg);
+  color: var(--text-color);
+}
+
+#deleteConfirmBtn {
+  background: #c0392b;
   color: #fff;
 }
 

@@ -534,6 +534,7 @@ let monthTagSortAsc = false;
 let todaySortField = "start"; // "start" | "end" | "duration"
 let todaySortAsc = true;
 let currentEditKey = null;
+let pendingDeleteKey = null;
 let cachedTags = [];
 let currentLang = DEFAULT_LANG;
 let currentPage = "home";
@@ -2918,6 +2919,10 @@ function setupEvents() {
   const editNoteInput = document.getElementById("editNoteInput");
   const editSaveBtn = document.getElementById("editSaveBtn");
   const editCancelBtn = document.getElementById("editCancelBtn");
+  const deleteDialog = document.getElementById("deleteDialog");
+  const deleteDialogMessage = document.getElementById("deleteDialogMessage");
+  const deleteCancelBtn = document.getElementById("deleteCancelBtn");
+  const deleteConfirmBtn = document.getElementById("deleteConfirmBtn");
   const tagSuggestions = document.getElementById("tagSuggestions");
   const editTagSuggestions = document.getElementById("editTagSuggestions");
   const tagChip = document.getElementById("tagChip");
@@ -3196,6 +3201,17 @@ function setupEvents() {
     render();
   }
 
+  function closeDeleteDialog() {
+    pendingDeleteKey = null;
+    if (deleteDialog) deleteDialog.classList.remove("visible");
+  }
+
+  function openDeleteDialog(key) {
+    pendingDeleteKey = key;
+    if (deleteDialogMessage) deleteDialogMessage.textContent = t("record.deleteConfirm");
+    if (deleteDialog) deleteDialog.classList.add("visible");
+  }
+
   function handleRecordEdit(key) {
     const records = loadRecords();
     const target = records.find(r => getRecordKey(r) === key);
@@ -3241,9 +3257,9 @@ function setupEvents() {
       const key = btn.getAttribute("data-key");
       if (!key) return;
       if (deleteBtn) {
-        if (confirm(t("record.deleteConfirm"))) {
-          handleRecordDelete(key);
-        }
+        event.preventDefault();
+        event.stopPropagation();
+        openDeleteDialog(key);
       } else if (editBtn) {
         handleRecordEdit(key);
       }
@@ -3253,6 +3269,17 @@ function setupEvents() {
   delegateRecordActions(todayRecordsBody);
   delegateRecordActions(filterDateBody);
   delegateRecordActions(calendarDateBody);
+
+  if (deleteCancelBtn) {
+    deleteCancelBtn.addEventListener("click", closeDeleteDialog);
+  }
+
+  if (deleteConfirmBtn) {
+    deleteConfirmBtn.addEventListener("click", () => {
+      if (pendingDeleteKey) handleRecordDelete(pendingDeleteKey);
+      closeDeleteDialog();
+    });
+  }
 
   if (editCancelBtn && editDialog) {
     editCancelBtn.addEventListener("click", () => {
