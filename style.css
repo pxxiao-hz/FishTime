@@ -194,6 +194,26 @@ body.mode-dark textarea {
   align-items: center;
 }
 
+.header-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.about-btn {
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-color);
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.about-btn:hover {
+  border-color: var(--header-accent);
+}
+
 .page-toggle .page-btn {
   border: 1px solid var(--border-color);
   background: var(--card-bg);
@@ -1048,6 +1068,14 @@ body.mode-dark textarea {
   margin-bottom: 6px;
 }
 
+.forecast-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .forecast h2 {
   font-size: 17px;
   font-weight: 600;
@@ -1179,6 +1207,39 @@ body.mode-dark textarea {
   border: none;
   cursor: pointer;
   font-size: 14px;
+}
+
+.about-dialog-content {
+  max-width: 360px;
+}
+
+.about-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.about-close {
+  border: 0;
+  background: transparent;
+  color: var(--muted-color);
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.about-version {
+  color: var(--header-accent);
+  font-weight: 600;
+  margin: 4px 0 12px;
+}
+
+.about-privacy {
+  color: var(--muted-color);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 8px 0 0;
 }
 
 #editCancelBtn {

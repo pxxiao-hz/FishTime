@@ -9,6 +9,7 @@ const STORAGE_KEY_MODULES = "fishtime-modules";
 const STORAGE_KEY_BGM = "fishtime-bgm";
 const DEFAULT_WORKSPACE = "default";
 const DEFAULT_LANG = "zh";
+const APP_VERSION_FALLBACK = "4.0.5";
 
 const chartHitboxes = {};
 let chartTooltipEl = null;
@@ -327,6 +328,12 @@ const I18N = {
     "forecast.noData": "预计：暂无数据",
     "forecast.note": "基于本月已过 {days} 天，平均每天 {avg}",
     "forecast.noDataNote": "请先记录至少一天的数据，再进行预测。",
+    "forecast.refresh": "重新计算",
+    "about.open": "About FishTime",
+    "about.title": "About FishTime",
+    "about.version": "版本 {version}",
+    "about.description": "本地优先的轻量计时与统计工具。",
+    "about.privacy": "计时数据默认仅保存在本机，可随时导入或导出备份。",
     "filters.title": "筛选统计",
     "filters.byDate": "按日期/月份查看",
     "filters.pickDate": "请选择日期查看统计",
@@ -469,6 +476,12 @@ const I18N = {
     "forecast.noData": "Estimated: No data",
     "forecast.note": "Based on {days} days so far, avg {avg} per day",
     "forecast.noDataNote": "Record at least one day to enable forecast.",
+    "forecast.refresh": "Recalculate",
+    "about.open": "About FishTime",
+    "about.title": "About FishTime",
+    "about.version": "Version {version}",
+    "about.description": "A lightweight, local-first timer and statistics tool.",
+    "about.privacy": "Timer data stays on this device by default and can be imported or exported anytime.",
     "filters.title": "Filters",
     "filters.byDate": "By Date / Month",
     "filters.pickDate": "Pick a date to view stats",
@@ -678,6 +691,16 @@ async function saveSecureApiKey(provider, apiKey) {
   if (result) await result;
 }
 
+async function loadAppVersion() {
+  try {
+    const result = tauriInvoke("app_version");
+    return result ? (await result) || APP_VERSION_FALLBACK : APP_VERSION_FALLBACK;
+  } catch (error) {
+    console.error(error);
+    return APP_VERSION_FALLBACK;
+  }
+}
+
 function loadAiSummaryCache() {
   const obj = loadScopedJSON(STORAGE_KEY_AI_SUMMARY, true, {});
   aiSummaryCache = obj && typeof obj === "object" ? obj : {};
@@ -750,6 +773,8 @@ function saveRecords(records) {
   // 任意记录变更都会影响按日总结；宁可重新生成，也不展示过期内容。
   aiSummaryCache = {};
   saveScopedJSON(STORAGE_KEY_AI_SUMMARY, aiSummaryCache);
+  // 预测也是记录的派生结果；写入后立刻刷新，避免显示旧预计时长。
+  if (document.getElementById("forecastTotal")) renderForecast();
 }
 
 function loadActiveSession() {
@@ -1088,6 +1113,8 @@ function applyLocale(lang) {
   const settingsBtn = document.getElementById("settingsBtn");
   const settingsPanel = document.getElementById("settingsPanel");
   const settingsCloseBtn = document.getElementById("settingsCloseBtn");
+  const aboutBtn = document.getElementById("aboutBtn");
+  const aboutCloseBtn = document.getElementById("aboutCloseBtn");
   const aiApiKeyInput = document.getElementById("aiApiKeyInput");
   const aiSaveBtn = document.getElementById("aiSaveBtn");
   const aiGenerateBtn = document.getElementById("aiGenerateBtn");
@@ -1137,6 +1164,14 @@ function applyLocale(lang) {
   if (settingsCloseBtn) {
     settingsCloseBtn.setAttribute("title", t("settings.close"));
     settingsCloseBtn.setAttribute("aria-label", t("settings.close"));
+  }
+  if (aboutBtn) {
+    aboutBtn.setAttribute("title", t("about.open"));
+    aboutBtn.setAttribute("aria-label", t("about.open"));
+  }
+  if (aboutCloseBtn) {
+    aboutCloseBtn.setAttribute("title", t("settings.close"));
+    aboutCloseBtn.setAttribute("aria-label", t("settings.close"));
   }
 
   updateToggleButtonLabels();
@@ -3425,6 +3460,11 @@ window.addEventListener("DOMContentLoaded", () => {
   const aiSaveBtn = document.getElementById("aiSaveBtn");
   const aiGenerateBtn = document.getElementById("aiGenerateBtn");
   const aiCopyBtn = document.getElementById("aiCopyBtn");
+  const forecastRefreshBtn = document.getElementById("forecastRefreshBtn");
+  const aboutBtn = document.getElementById("aboutBtn");
+  const aboutDialog = document.getElementById("aboutDialog");
+  const aboutCloseBtn = document.getElementById("aboutCloseBtn");
+  const aboutVersion = document.getElementById("aboutVersion");
   const aiSummaryBox = document.getElementById("aiSummaryBox");
   const pageHomeBtn = document.getElementById("pageHomeBtn");
   const pageStatsBtn = document.getElementById("pageStatsBtn");
@@ -3502,6 +3542,17 @@ window.addEventListener("DOMContentLoaded", () => {
     document.body.classList.remove("settings-only");
   }
 
+  async function openAbout() {
+    if (aboutVersion) {
+      aboutVersion.textContent = t("about.version", { version: await loadAppVersion() });
+    }
+    if (aboutDialog) aboutDialog.classList.add("visible");
+  }
+
+  function closeAbout() {
+    if (aboutDialog) aboutDialog.classList.remove("visible");
+  }
+
   if (settingsBtn && settingsPanel) {
     settingsBtn.addEventListener("click", () => {
       openSettings();
@@ -3523,6 +3574,21 @@ window.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+  if (aboutBtn) aboutBtn.addEventListener("click", openAbout);
+  if (aboutCloseBtn) aboutCloseBtn.addEventListener("click", closeAbout);
+  if (aboutDialog) {
+    aboutDialog.addEventListener("click", event => {
+      if (event.target === aboutDialog) closeAbout();
+    });
+  }
+
+  if (forecastRefreshBtn) {
+    forecastRefreshBtn.addEventListener("click", () => renderForecast());
+  }
+  window.addEventListener("focus", () => renderForecast());
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) renderForecast();
+  });
 
   document.addEventListener("keydown", event => {
     const isCmdOrCtrl = event.metaKey || event.ctrlKey;

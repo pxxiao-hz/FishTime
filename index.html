@@ -26,8 +26,11 @@
         <button id="pageHomeBtn" class="page-btn active" data-i18n="nav.home">主页</button>
         <button id="pageStatsBtn" class="page-btn" data-i18n="nav.stats">Statistics</button>
       </div>
-      <div class="lang-toggle">
-        <button id="langToggleBtn" class="lang-btn" type="button" aria-label="切换语言" title="切换语言" data-short="中"></button>
+      <div class="header-tools">
+        <button id="aboutBtn" class="about-btn" type="button" data-i18n="about.open">About FishTime</button>
+        <div class="lang-toggle">
+          <button id="langToggleBtn" class="lang-btn" type="button" aria-label="切换语言" title="切换语言" data-short="中"></button>
+        </div>
       </div>
     </section>
 
@@ -152,7 +155,10 @@
     <section class="forecast page-section" data-page="home">
       <div class="forecast-header">
         <h2 data-i18n="forecast.title">本月总时长预测</h2>
-        <span id="forecastTotal" class="forecast-total">预计：0 小时 0 分钟</span>
+        <div class="forecast-actions">
+          <span id="forecastTotal" class="forecast-total">预计：0 小时 0 分钟</span>
+          <button id="forecastRefreshBtn" type="button" class="toggle-btn small" data-i18n="forecast.refresh">重新计算</button>
+        </div>
       </div>
       <p id="forecastNote" class="forecast-note"></p>
       <canvas id="forecastChart"></canvas>
@@ -323,6 +329,17 @@
           <button type="button" id="deleteCancelBtn" data-i18n="action.cancel">取消</button>
           <button type="button" id="deleteConfirmBtn" data-i18n="action.delete">删除</button>
         </div>
+      </div>
+    </div>
+    <div id="aboutDialog" class="edit-dialog" role="dialog" aria-modal="true" aria-labelledby="aboutDialogTitle">
+      <div class="edit-dialog-content about-dialog-content">
+        <div class="about-dialog-header">
+          <h2 id="aboutDialogTitle" data-i18n="about.title">About FishTime</h2>
+          <button id="aboutCloseBtn" class="about-close" type="button" aria-label="关闭">×</button>
+        </div>
+        <p id="aboutVersion" class="about-version"></p>
+        <p data-i18n="about.description">本地优先的轻量计时与统计工具。</p>
+        <p class="about-privacy" data-i18n="about.privacy">计时数据默认仅保存在本机，可随时导入或导出备份。</p>
       </div>
     </div>
   </div>

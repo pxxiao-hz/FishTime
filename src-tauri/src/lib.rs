@@ -45,9 +45,14 @@ fn save_api_key(provider: String, api_key: String) -> Result<(), String> {
     }
 }
 
+#[tauri::command]
+fn app_version(app: tauri::AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![load_api_key, save_api_key])
+        .invoke_handler(tauri::generate_handler![load_api_key, save_api_key, app_version])
         .setup(|app| {
             let new_workspace = MenuItemBuilder::with_id("workspace:new", "New Workspace")
                 .accelerator("CmdOrCtrl+Shift+N")
