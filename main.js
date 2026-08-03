@@ -885,8 +885,28 @@ function buildRecordsFromActiveSession(active, end, tag, note) {
 }
 
 function getRecordKey(record) {
-  if (record.id) return record.id;
+  if (record.id !== undefined && record.id !== null && String(record.id)) {
+    return String(record.id);
+  }
   return `${record.startTime || ""}|${record.endTime || ""}`;
+}
+
+function appendRecordActions(container, record) {
+  const key = getRecordKey(record);
+  const editBtn = document.createElement("button");
+  editBtn.type = "button";
+  editBtn.className = "record-edit";
+  editBtn.dataset.key = key;
+  editBtn.textContent = t("action.edit");
+
+  const deleteBtn = document.createElement("button");
+  deleteBtn.type = "button";
+  deleteBtn.className = "record-delete";
+  deleteBtn.dataset.key = key;
+  deleteBtn.textContent = t("action.delete");
+
+  container.appendChild(editBtn);
+  container.appendChild(deleteBtn);
 }
 
 function toTimeInputValue(isoString) {
@@ -2147,36 +2167,25 @@ function renderCalendarDetails(dateStr) {
 
   const records = loadRecords();
   const list = records.filter(r => r.date === dateStr);
-  const rows = [...list];
-
   const active = loadActiveSession();
   const activeByDate = getActiveDurationsByDate(active);
-  if (activeByDate[dateStr]) {
-    const activeEntry = activeByDate[dateStr];
-    rows.push({
-      startTimeText: formatTime(new Date(activeEntry.firstStartMs)),
-      endTimeText: currentLang === "en" ? "Now" : "当前",
-      durationMs: activeEntry.durationMs,
-      tag: "",
-      note: currentLang === "en" ? "In progress" : "计时中"
-    });
-  }
-
-  const totalMs = sumDuration(rows);
+  const activeEntry = activeByDate[dateStr];
+  const totalMs = sumDuration(list) + (activeEntry?.durationMs || 0);
   summaryEl.textContent = t("filters.dateSummary", {
     date: dateStr,
     total: formatDuration(totalMs),
-    count: rows.length
+    count: list.length + (activeEntry ? 1 : 0)
   });
 
   tbody.innerHTML = "";
-  rows.forEach(r => {
+  list.forEach(r => {
     const tr = document.createElement("tr");
     const tdStart = document.createElement("td");
     const tdEnd = document.createElement("td");
     const tdDur = document.createElement("td");
     const tdTag = document.createElement("td");
     const tdNote = document.createElement("td");
+    const tdActions = document.createElement("td");
 
     tdStart.textContent = r.startTimeText || (r.startTime ? formatTime(new Date(r.startTime)) : "");
     tdEnd.textContent = r.endTimeText || (r.endTime ? formatTime(new Date(r.endTime)) : "");
@@ -2189,8 +2198,28 @@ function renderCalendarDetails(dateStr) {
     tr.appendChild(tdDur);
     tr.appendChild(tdTag);
     tr.appendChild(tdNote);
+    tdActions.className = "record-actions";
+    appendRecordActions(tdActions, r);
+    tr.appendChild(tdActions);
     tbody.appendChild(tr);
   });
+
+  if (activeEntry) {
+    const tr = document.createElement("tr");
+    [
+      formatTime(new Date(activeEntry.firstStartMs)),
+      currentLang === "en" ? "Now" : "当前",
+      formatDuration(activeEntry.durationMs),
+      "",
+      currentLang === "en" ? "In progress" : "计时中"
+    ].forEach(value => {
+      const td = document.createElement("td");
+      td.textContent = value;
+      tr.appendChild(td);
+    });
+    tr.appendChild(document.createElement("td"));
+    tbody.appendChild(tr);
+  }
 
   const cached = aiSummaryCache[dateStr];
   aiBox.textContent = cached
@@ -2236,7 +2265,6 @@ function renderFilterByDate() {
     const tdTag = document.createElement("td");
     const tdNote = document.createElement("td");
     const tdActions = document.createElement("td");
-    const key = getRecordKey(r);
     tdStart.textContent = r.startTimeText;
     tdEnd.textContent = r.endTimeText;
     tdDur.textContent = formatDuration(r.durationMs);
@@ -2248,7 +2276,7 @@ function renderFilterByDate() {
     tr.appendChild(tdTag);
     tr.appendChild(tdNote);
     tdActions.className = "record-actions";
-    tdActions.innerHTML = `<button class="record-edit" data-key="${key}">${t("action.edit")}</button><button class="record-delete" data-key="${key}">${t("action.delete")}</button>`;
+    appendRecordActions(tdActions, r);
     tr.appendChild(tdActions);
     tbody.appendChild(tr);
   });
@@ -2413,7 +2441,6 @@ function render() {
     const tdTag = document.createElement("td");
     const tdNote = document.createElement("td");
     const tdActions = document.createElement("td");
-    const key = getRecordKey(r);
     tdStart.textContent = r.startTimeText;
     tdEnd.textContent = r.endTimeText;
     tdDur.textContent = formatDuration(r.durationMs);
@@ -2425,7 +2452,7 @@ function render() {
     tr.appendChild(tdTag);
     tr.appendChild(tdNote);
     tdActions.className = "record-actions";
-    tdActions.innerHTML = `<button class="record-edit" data-key="${key}">${t("action.edit")}</button><button class="record-delete" data-key="${key}">${t("action.delete")}</button>`;
+    appendRecordActions(tdActions, r);
     tr.appendChild(tdActions);
     tbody.appendChild(tr);
   });
@@ -2882,6 +2909,7 @@ function setupEvents() {
   const clearDataBtn = document.getElementById("clearDataBtn");
   const todayRecordsBody = document.getElementById("todayRecordsBody");
   const filterDateBody = document.getElementById("filterDateBody");
+  const calendarDateBody = document.getElementById("calendarDateBody");
   const editDialog = document.getElementById("editDialog");
   const editDialogTime = document.getElementById("editDialogTime");
   const editStartTimeInput = document.getElementById("editStartTimeInput");
@@ -3224,6 +3252,7 @@ function setupEvents() {
 
   delegateRecordActions(todayRecordsBody);
   delegateRecordActions(filterDateBody);
+  delegateRecordActions(calendarDateBody);
 
   if (editCancelBtn && editDialog) {
     editCancelBtn.addEventListener("click", () => {
