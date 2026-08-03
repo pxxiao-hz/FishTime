@@ -54,6 +54,8 @@ pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![load_api_key, save_api_key, app_version])
         .setup(|app| {
+            let about = MenuItemBuilder::with_id("app:about", "About FishTime")
+                .build(app)?;
             let new_workspace = MenuItemBuilder::with_id("workspace:new", "New Workspace")
                 .accelerator("CmdOrCtrl+Shift+N")
                 .build(app)?;
@@ -64,6 +66,8 @@ pub fn run() {
                 .accelerator("CmdOrCtrl+,")
                 .build(app)?;
             let app_menu = SubmenuBuilder::new(app, "FishTime")
+                .item(&about)
+                .separator()
                 .item(&new_workspace)
                 .item(&switch_workspace)
                 .separator()
@@ -93,7 +97,7 @@ pub fn run() {
                 let event_name = event.id().0.as_str();
                 if matches!(
                     event_name,
-                    "workspace:new" | "workspace:switch" | "settings:open"
+                    "app:about" | "workspace:new" | "workspace:switch" | "settings:open"
                 ) {
                     let _ = app.emit(event_name, ());
                 }

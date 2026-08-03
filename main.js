@@ -9,7 +9,7 @@ const STORAGE_KEY_MODULES = "fishtime-modules";
 const STORAGE_KEY_BGM = "fishtime-bgm";
 const DEFAULT_WORKSPACE = "default";
 const DEFAULT_LANG = "zh";
-const APP_VERSION_FALLBACK = "4.0.5";
+const APP_VERSION_FALLBACK = "4.0.6";
 
 const chartHitboxes = {};
 let chartTooltipEl = null;
@@ -3600,6 +3600,9 @@ window.addEventListener("DOMContentLoaded", () => {
 
   const tauriEvent = window.__TAURI__ && window.__TAURI__.event;
   if (tauriEvent) {
+    tauriEvent.listen("app:about", () => {
+      openAbout();
+    });
     tauriEvent.listen("workspace:new", () => {
       openSettings();
       if (workspaceNameInput) workspaceNameInput.focus();

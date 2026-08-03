@@ -63,6 +63,10 @@ src-tauri/target/release/bundle/dmg/
 
 ## 更新日志
 
+### 4.0.6
+
+- 在 macOS 顶部菜单的 **FishTime** 子菜单中加入 **About FishTime**，点击可查看版本与隐私说明。
+
 ### 4.0.5
 
 - 增加“重新计算”预测按钮，并在窗口重新获得焦点时自动重算。
