@@ -63,6 +63,10 @@ src-tauri/target/release/bundle/dmg/
 
 ## 更新日志
 
+### 4.0.7
+
+- 移除界面右上角的 About FishTime 按钮；About 仅保留在 macOS 顶部菜单中。
+
 ### 4.0.6
 
 - 在 macOS 顶部菜单的 **FishTime** 子菜单中加入 **About FishTime**，点击可查看版本与隐私说明。

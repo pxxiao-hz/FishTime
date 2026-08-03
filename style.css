@@ -194,26 +194,6 @@ body.mode-dark textarea {
   align-items: center;
 }
 
-.header-tools {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.about-btn {
-  border: 1px solid var(--border-color);
-  background: var(--card-bg);
-  color: var(--text-color);
-  border-radius: 999px;
-  padding: 4px 9px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.about-btn:hover {
-  border-color: var(--header-accent);
-}
-
 .page-toggle .page-btn {
   border: 1px solid var(--border-color);
   background: var(--card-bg);

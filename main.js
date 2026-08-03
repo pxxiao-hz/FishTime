@@ -9,7 +9,7 @@ const STORAGE_KEY_MODULES = "fishtime-modules";
 const STORAGE_KEY_BGM = "fishtime-bgm";
 const DEFAULT_WORKSPACE = "default";
 const DEFAULT_LANG = "zh";
-const APP_VERSION_FALLBACK = "4.0.6";
+const APP_VERSION_FALLBACK = "4.0.7";
 
 const chartHitboxes = {};
 let chartTooltipEl = null;
@@ -1113,7 +1113,6 @@ function applyLocale(lang) {
   const settingsBtn = document.getElementById("settingsBtn");
   const settingsPanel = document.getElementById("settingsPanel");
   const settingsCloseBtn = document.getElementById("settingsCloseBtn");
-  const aboutBtn = document.getElementById("aboutBtn");
   const aboutCloseBtn = document.getElementById("aboutCloseBtn");
   const aiApiKeyInput = document.getElementById("aiApiKeyInput");
   const aiSaveBtn = document.getElementById("aiSaveBtn");
@@ -1164,10 +1163,6 @@ function applyLocale(lang) {
   if (settingsCloseBtn) {
     settingsCloseBtn.setAttribute("title", t("settings.close"));
     settingsCloseBtn.setAttribute("aria-label", t("settings.close"));
-  }
-  if (aboutBtn) {
-    aboutBtn.setAttribute("title", t("about.open"));
-    aboutBtn.setAttribute("aria-label", t("about.open"));
   }
   if (aboutCloseBtn) {
     aboutCloseBtn.setAttribute("title", t("settings.close"));
@@ -3461,7 +3456,6 @@ window.addEventListener("DOMContentLoaded", () => {
   const aiGenerateBtn = document.getElementById("aiGenerateBtn");
   const aiCopyBtn = document.getElementById("aiCopyBtn");
   const forecastRefreshBtn = document.getElementById("forecastRefreshBtn");
-  const aboutBtn = document.getElementById("aboutBtn");
   const aboutDialog = document.getElementById("aboutDialog");
   const aboutCloseBtn = document.getElementById("aboutCloseBtn");
   const aboutVersion = document.getElementById("aboutVersion");
@@ -3574,7 +3568,6 @@ window.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
-  if (aboutBtn) aboutBtn.addEventListener("click", openAbout);
   if (aboutCloseBtn) aboutCloseBtn.addEventListener("click", closeAbout);
   if (aboutDialog) {
     aboutDialog.addEventListener("click", event => {
