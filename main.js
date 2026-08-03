@@ -2530,7 +2530,9 @@ function render() {
     });
   }
 
-  if (currentPage === "home" && modulePrefs.homeForecast) {
+  // 预测是记录数据的派生结果；即使当前停留在统计页，记录变更后也要刷新，
+  // 这样切回主页时不会看到旧的预计时长。
+  if (modulePrefs.homeForecast) {
     renderForecast();
   }
 
