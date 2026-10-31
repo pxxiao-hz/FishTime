@@ -4,6 +4,7 @@ use tauri::{
     Emitter,
 };
 mod tray;
+mod updates;
 
 fn keychain_service(provider: &str) -> Result<String, String> {
     match provider {
@@ -69,12 +70,19 @@ fn app_version(app: tauri::AppHandle) -> String {
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updates::UpdateState::default())
         .invoke_handler(tauri::generate_handler![
             load_api_key,
             save_api_key,
             app_version,
             tray::sync_tray,
-            tray::exit_app
+            tray::exit_app,
+            updates::check_for_update,
+            updates::download_update,
+            updates::install_update,
+            updates::restart_after_update,
+            updates::open_release_page
         ])
         .on_window_event(|window, event| {
             if window.label() == "main" {
@@ -90,6 +98,8 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             let about = MenuItemBuilder::with_id("app:about", "About FishTime").build(app)?;
+            let check_update =
+                MenuItemBuilder::with_id("app:check-update", "Check for Updates…").build(app)?;
             let new_workspace = MenuItemBuilder::with_id("workspace:new", "New Workspace")
                 .accelerator("CmdOrCtrl+Shift+N")
                 .build(app)?;
@@ -101,6 +111,7 @@ pub fn run() {
                 .build(app)?;
             let app_menu = SubmenuBuilder::new(app, "FishTime")
                 .item(&about)
+                .item(&check_update)
                 .separator()
                 .item(&new_workspace)
                 .item(&switch_workspace)
@@ -132,10 +143,12 @@ pub fn run() {
                 let event_name = event.id().0.as_str();
                 match event_name {
                     "tray:open" => tray::show_main(app),
-                    "tray:about" | "tray:settings" => {
+                    "tray:about" | "tray:settings" | "tray:update" => {
                         tray::show_main(app);
                         let target = if event_name == "tray:about" {
                             "app:about"
+                        } else if event_name == "tray:update" {
+                            "app:check-update"
                         } else {
                             "settings:open"
                         };
@@ -149,7 +162,11 @@ pub fn run() {
                 }
                 if matches!(
                     event_name,
-                    "app:about" | "workspace:new" | "workspace:switch" | "settings:open"
+                    "app:about"
+                        | "app:check-update"
+                        | "workspace:new"
+                        | "workspace:switch"
+                        | "settings:open"
                 ) {
                     tray::show_main(app);
                     let _ = app.emit(event_name, ());

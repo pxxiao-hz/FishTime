@@ -91,6 +91,7 @@
           <button id="aboutCloseBtn" class="about-close" type="button" aria-label="关闭">×</button>
         </div>
         <p id="aboutVersion" class="about-version"></p>
+        <button id="aboutCheckUpdateBtn" type="button" data-i18n="updates.check">检查更新</button>
         <p data-i18n="about.description">本地优先的轻量计时与统计工具。</p>
         <p class="about-privacy" data-i18n="about.privacy">计时数据默认仅保存在本机，可随时导入或导出备份。</p>
       </div>
@@ -103,6 +104,7 @@
         <button id="settingsCloseBtn" class="settings-close" type="button" aria-label="关闭" title="关闭">×</button>
       </div>
       <div class="settings-body">
+        <div class="settings-row"><span class="settings-label" data-i18n="updates.title">软件更新</span><button id="settingsCheckUpdateBtn" type="button" data-i18n="updates.check">检查更新</button></div>
         <div class="settings-row">
           <span class="settings-label" data-i18n="settings.language">语言</span>
           <div class="settings-options">
@@ -224,6 +226,16 @@
     </label>
   </div>
 
+  <div id="updateDialog" class="edit-dialog update-dialog" role="dialog" aria-modal="true" aria-labelledby="updateTitle">
+    <div class="edit-dialog-content">
+      <h2 id="updateTitle">软件更新</h2><p id="updateCurrentVersion" class="about-version"></p>
+      <p id="updateStatus" role="status" aria-live="polite"></p>
+      <progress id="updateProgress" hidden aria-label="下载进度"></progress><span id="updateProgressText"></span>
+      <pre id="updateNotes"></pre><p id="updateNotice" class="settings-hint"></p>
+      <div class="edit-dialog-actions"><button id="updateManualBtn" type="button">手动下载</button><button id="updateCheckBtn" type="button">检查更新</button><button id="updateInstallBtn" type="button" hidden>下载并安装</button><button id="updateCloseBtn" type="button">关闭</button></div>
+    </div>
+  </div>
+  <script src="updater.js"></script>
   <script src="main.js"></script>
 </body>
 </html>

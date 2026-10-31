@@ -38,6 +38,7 @@ pub struct TrayState {
     open: MenuItem<tauri::Wry>,
     about: MenuItem<tauri::Wry>,
     settings: MenuItem<tauri::Wry>,
+    update: MenuItem<tauri::Wry>,
     quit: MenuItem<tauri::Wry>,
 }
 
@@ -71,6 +72,10 @@ pub fn show_main(app: &tauri::AppHandle) {
 }
 
 pub fn request_quit(app: &tauri::AppHandle) {
+    if crate::updates::installing(app) {
+        show_main(app);
+        return;
+    }
     let ready = app.state::<TrayState>().snapshot.lock().unwrap().is_some();
     if ready {
         let _ = app.emit_to("main", "timer:action", "quit");
@@ -194,6 +199,11 @@ fn refresh(app: &tauri::AppHandle) {
         "打开 FishTime"
     });
     let _ = state.about.set_text("About FishTime");
+    let _ = state.update.set_text(if en {
+        "Check for Updates…"
+    } else {
+        "检查更新…"
+    });
     let _ = state
         .settings
         .set_text(if en { "Settings" } else { "设置" });
@@ -216,13 +226,14 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
     let open = MenuItemBuilder::with_id("tray:open", "打开 FishTime").build(app)?;
     let about = MenuItemBuilder::with_id("tray:about", "About FishTime").build(app)?;
     let settings = MenuItemBuilder::with_id("tray:settings", "设置").build(app)?;
+    let update = MenuItemBuilder::with_id("tray:update", "检查更新…").build(app)?;
     let quit = MenuItemBuilder::with_id("tray:quit", "退出 FishTime").build(app)?;
     let menu = MenuBuilder::new(app)
         .items(&[&status, &workspace, &session, &today])
         .separator()
         .items(&[&start, &pause, &stop])
         .separator()
-        .items(&[&open, &settings, &about])
+        .items(&[&open, &settings, &update, &about])
         .separator()
         .item(&quit)
         .build()?;
@@ -259,6 +270,7 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
         open,
         about,
         settings,
+        update,
         quit,
     });
     let handle = app.handle().clone();

@@ -9,7 +9,7 @@ const STORAGE_KEY_MODULES = "fishtime-modules";
 const STORAGE_KEY_BGM = "fishtime-bgm";
 const DEFAULT_WORKSPACE = "default";
 const DEFAULT_LANG = "zh";
-const APP_VERSION_FALLBACK = "5.0.0";
+const APP_VERSION_FALLBACK = "5.1.0";
 let trayReady = false;
 let trayRevision = Date.now();
 
@@ -632,6 +632,7 @@ const I18N = {
   }
 };
 Object.assign(I18N.zh, {
+  "updates.check":"检查更新", "updates.title":"软件更新",
   "app.title": "FishTime", "nav.home": "今天", "nav.records": "记录", "nav.stats": "统计",
   "action.start": "开始计时", "action.pause": "暂停", "action.stop": "结束并保存", "ui.resume": "继续计时",
   "label.tag": "标签", "table.tag": "标签", "label.note": "备注", "summary.today": "今日累计", "summary.monthToDate": "本月累计",
@@ -648,6 +649,7 @@ Object.assign(I18N.zh, {
   "records.monthTag": "本月标签汇总（当前月份）", "quote.label": "今日一句", "chart.tagDistribution": "标签用时分布", "chart.noTagData": "还没有标签用时数据"
 });
 Object.assign(I18N.en, {
+  "updates.check":"Check for updates", "updates.title":"Software update",
   "app.title": "FishTime", "nav.home": "Today", "nav.records": "Records", "nav.stats": "Insights",
   "action.start": "Start timer", "action.pause": "Pause", "action.stop": "Finish & save", "ui.resume": "Resume",
   "label.tag": "Tag", "label.note": "Note", "summary.today": "Today", "summary.monthToDate": "This month",
@@ -3179,6 +3181,7 @@ function setupEvents() {
   const nativeEvents = window.__TAURI__?.event;
   if (nativeEvents) {
     nativeEvents.listen("timer:action", async event => {
+      if (window.FishTimeUpdater?.installing) return;
       try {
         if (event.payload === "start") startSession();
         else if (event.payload === "pause") pauseSession();
@@ -3622,7 +3625,8 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   });
   document.addEventListener("keydown",event => {
-    if (event.key === "Escape") { closeSettings(); closeAbout(); document.querySelectorAll(".edit-dialog.visible").forEach(dialog=>dialog.classList.remove("visible")); document.querySelectorAll(".row-menu[open]").forEach(menu=>menu.removeAttribute("open")); }
+    if (event.key === "Escape" && window.FishTimeUpdater?.installing) return;
+    if (event.key === "Escape") { closeSettings(); closeAbout(); document.querySelectorAll('.edit-dialog.visible:not([data-lock-close="true"])').forEach(dialog=>dialog.classList.remove("visible")); document.querySelectorAll(".row-menu[open]").forEach(menu=>menu.removeAttribute("open")); }
   });
   const savedPage = localStorage.getItem(STORAGE_KEY_PAGE) || "home";
   setPage(savedPage);
@@ -3696,6 +3700,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   const tauriEvent = window.__TAURI__ && window.__TAURI__.event;
   if (tauriEvent) {
+    tauriEvent.listen("app:check-update", () => window.FishTimeUpdater?.open());
     tauriEvent.listen("app:about", () => {
       openAbout();
     });
@@ -3966,6 +3971,18 @@ window.addEventListener("DOMContentLoaded", () => {
   render();
   setupEvents();
   setupTimers();
+  let updateDraft = null;
+  try { updateDraft = JSON.parse(localStorage.getItem("fishtime-update-draft") || "null"); } catch { /* Ignore malformed drafts. */ }
+  if (updateDraft && updateDraft.workspace === currentWorkspace) {
+    const tag = document.getElementById("tagInput"), note = document.getElementById("noteInput");
+    if(tag) tag.value = updateDraft.tag || "";
+    if(note) note.value = updateDraft.note || "";
+  }
+  localStorage.removeItem("fishtime-update-draft");
+  window.FishTimeUpdater?.init({language:()=>currentLang,invoke:tauriInvoke,version:loadAppVersion,pause:()=>{
+    localStorage.setItem("fishtime-update-draft",JSON.stringify({workspace:currentWorkspace,tag:document.getElementById("tagInput")?.value||"",note:document.getElementById("noteInput")?.value||""}));
+    pauseAllSessions();
+  }});
   document.querySelectorAll(".sortable").forEach(header => {
     header.tabIndex = 0;
     header.addEventListener("keydown",event => {

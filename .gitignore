@@ -10,3 +10,5 @@ dist/
 !.env.example
 *.dmg
 *.app
+*.key
+*.key.pub

@@ -55,6 +55,14 @@ FishTime 坚持“本地优先”：计时记录默认只保存在电脑上，�
 - 选择“退出 FishTime”或按 `Command-Q` 会暂停所有分区的活动计时并退出。下次启动后可以继续或结束保存。
 - 菜单栏不展示标签、备注和 AI 内容。睡眠期间沿用原来的计时规则：未暂停的时间会计入时长，唤醒后按时间戳刷新。
 
+### 检查更新与自动安装
+
+- 从 **设置 → 软件更新 → 检查更新**，或右上角小鱼菜单中的 **检查更新…** 进入；About FishTime 中也有相同入口。
+- 发现新版后，点击 **下载并安装**。下载时可以继续计时；下载并校验完成后，App 会保存标签和备注、暂停活动计时、安装并重新启动。
+- 更新仅在主动点击时检查，不会发送计时记录、标签、备注或 AI Key。网络请求仅用于从 GitHub 获取版本清单和签名安装包。
+- 更新失败时可重试或选择手动下载。从 DMG 中直接运行的 App，需要先移入“应用程序”，退出并重新打开后再更新。
+- **5.0.0 及更早版本需要手动安装一次 5.1.0 或更新版本**，之后才能使用 App 内更新。
+
 ## 数据与隐私
 
 - 计时数据、分区和界面设置默认存放在本机的系统 WebView 数据库中；FishTime 不提供账号、云同步或遥测上传。
@@ -86,6 +94,14 @@ src-tauri/target/release/bundle/dmg/
 
 可选的 UI 回归测试需要本机安装 Google Chrome，并可通过 Node 解析 `playwright` 模块，再运行 `npm run test:ui`。测试使用隔离浏览器和合成记录，截图写入临时目录；可通过 `FISHTIME_SCREENSHOT_DIR` 指定截图目录。此工具仅用于开发，不包含在安装包中。
 
+### 发布维护
+
+发布包必须使用与 `src-tauri/tauri.conf.json` 公钥匹配的更新签名私钥。构建脚本优先读取 `TAURI_SIGNING_PRIVATE_KEY`，否则使用维护者本机的 `~/.config/fishtime/signing/updater.key`；可选密码通过 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 提供。私钥应保存在仓库外并备份，不要提交、上传或重新生成来替换现有密钥。
+
+`npm run dist` 会生成 DMG、`FishTime.app.tar.gz`、其 `.sig` 签名以及 `dist/latest.json`。每次发布需将这四个文件上传到同一个 GitHub Release，并在验证完成后将其设为 latest，才能让已安装版本找到更新。更新包签名与 Apple Developer ID／公证是两套不同机制。
+
+不持有发布密钥的开发者可以运行 `npm start`；如需本地构建，在 Tauri 配置中临时关闭 `bundle.createUpdaterArtifacts`，使用 `npm run tauri -- build`，不要将未签名构建用作官方自动更新。
+
 ## 项目结构
 
 - `index.html`、`style.css`、`main.js`：界面和核心逻辑
@@ -94,6 +110,12 @@ src-tauri/target/release/bundle/dmg/
 - `scripts/build-release.js`：发布构建自动替换 Rust 中的本机源码路径，避免安装包包含开发者主目录信息
 
 ## 更新日志
+
+### 5.1.0
+
+- 设置、菜单栏和 About 中新增检查更新入口；支持查看版本、下载进度、签名校验、安装和重启。
+- 安装前保存并暂停全部分区计时，保留当前未完成的标签与备注。
+- 新增签名更新清单生成流程，私钥仅保存在维护者本机；提供网络／安装失败反馈和手动下载入口。
 
 ### 5.0.0
 

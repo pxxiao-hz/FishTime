@@ -10,7 +10,7 @@ const path = require('node:path');
 (async () => {
   const root = path.resolve(__dirname, '..');
   const output = process.env.FISHTIME_SCREENSHOT_DIR || fs.mkdtempSync(path.join(os.tmpdir(), 'fishtime-ui-'));
-  const allowed = new Set(['index.html', 'main.js', 'style.css', 'assets/bgm/track1.mp3']);
+  const allowed = new Set(['index.html', 'main.js', 'updater.js', 'style.css', 'assets/bgm/track1.mp3']);
   const server = http.createServer((request, response) => {
     const file = request.url.split('?')[0].slice(1) || 'index.html';
     if (!allowed.has(file)) { response.writeHead(404); response.end(); return; }
@@ -137,6 +137,36 @@ const path = require('node:path');
     assert.equal(await page.locator('#startBtn').isVisible(),true);
     await page.screenshot({path:path.join(output,'today-compact.png'),fullPage:true});
     console.log('PASS: calendar, themes, language, backup export, compact layout');
+    await page.locator('#settingsBtn').click();
+    await page.locator('#settingsCheckUpdateBtn').click();
+    await page.waitForFunction(()=>document.querySelector('#updateStatus').textContent.includes('桌面'));
+    await page.locator('#updateCloseBtn').click();
+    const updateContext=await browser.newContext({viewport:{width:1000,height:700}});
+    await updateContext.addInitScript(()=>{
+      window.__mockEvents={};window.__mockFail=true;
+      window.__TAURI__={core:{invoke:async(command)=>{
+        if(command==='app_version')return '5.1.0';
+        if(command==='load_api_key')return '';
+        if(command==='check_for_update')return {version:'5.2.0',currentVersion:'5.1.0',notes:'测试更新说明'};
+        if(command==='download_update'){window.__mockEvents['updater:progress']?.({payload:{downloaded:50,total:100}});return;}
+        if(command==='install_update')throw new Error('move_to_applications');
+      }},event:{listen:async(name,callback)=>{window.__mockEvents[name]=callback;}}};
+    });
+    const updatePage=await updateContext.newPage();
+    updatePage.on('pageerror',error=>errors.push(String(error)));
+    await updatePage.goto(`http://127.0.0.1:${server.address().port}`);
+    await updatePage.locator('#startBtn').click();
+    await updatePage.locator('#noteInput').fill('更新前未完成的备注');
+    await updatePage.evaluate(()=>window.__mockEvents['app:check-update']({}));
+    await updatePage.waitForFunction(()=>document.querySelector('#updateStatus').textContent.includes('5.2.0'));
+    await updatePage.screenshot({path:path.join(output,'update-available.png')});
+    await updatePage.locator('#updateInstallBtn').click();
+    await updatePage.waitForFunction(()=>document.querySelector('#updateStatus').textContent.includes('应用程序'));
+    await updatePage.reload();
+    assert.equal(await updatePage.locator('#noteInput').inputValue(),'更新前未完成的备注');
+    assert.equal(await updatePage.locator('body').getAttribute('data-timer-state'),'paused');
+    await updateContext.close();
+    console.log('PASS: update entry points, native update flow simulation, install error, paused session and draft recovery');
     assert.deepEqual(errors,[]);
     console.log(`UI smoke tests passed. Screenshots: ${output}`);
   } finally {
