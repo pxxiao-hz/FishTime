@@ -9,7 +9,7 @@ const STORAGE_KEY_MODULES = "fishtime-modules";
 const STORAGE_KEY_BGM = "fishtime-bgm";
 const DEFAULT_WORKSPACE = "default";
 const DEFAULT_LANG = "zh";
-const APP_VERSION_FALLBACK = "4.1.1";
+const APP_VERSION_FALLBACK = "5.0.0";
 let trayReady = false;
 let trayRevision = Date.now();
 
@@ -296,7 +296,8 @@ function updateBgmUI() {
 }
 
 function updateWorkspaceUI() {
-  const select = document.getElementById("workspaceSelect");
+  ["workspaceSelect", "sidebarWorkspaceSelect"].forEach(id => {
+  const select = document.getElementById(id);
   if (select) {
     select.innerHTML = "";
     workspaces.forEach(ws => {
@@ -307,6 +308,7 @@ function updateWorkspaceUI() {
       select.appendChild(opt);
     });
   }
+  });
   const display = document.getElementById("currentWorkspaceBadge");
   if (display) {
     display.textContent = currentWorkspace;
@@ -323,6 +325,8 @@ function setWorkspace(name) {
     workspaces.push(clean);
   }
   currentWorkspace = clean;
+  historyLimit = 100;
+  ["recordSearch", "filterDate", "recordTagFilter"].forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
   saveWorkspaceMeta();
   loadAiSummaryCache();
   loadModulePrefs();
@@ -627,6 +631,41 @@ const I18N = {
       "This session exceeded 4 hours. Please check if you forgot to stop or adjust in records."
   }
 };
+Object.assign(I18N.zh, {
+  "app.title": "FishTime", "nav.home": "今天", "nav.records": "记录", "nav.stats": "统计",
+  "action.start": "开始计时", "action.pause": "暂停", "action.stop": "结束并保存", "ui.resume": "继续计时",
+  "label.tag": "标签", "table.tag": "标签", "label.note": "备注", "summary.today": "今日累计", "summary.monthToDate": "本月累计",
+  "placeholder.tag": "例如：阅读、开发", "placeholder.note": "这段时间想做什么？", "records.today": "今天的记录",
+  "status.idle": "准备好开始了吗", "mode.default": "浅色", "mode.dark": "深色", "mode.system": "跟随系统",
+  "ui.local": "数据仅存于本机", "ui.timerHint": "给正在做的事，一段专注的时间。", "ui.sessions": "今日完成",
+  "ui.viewAll": "查看全部", "ui.list": "列表", "ui.calendar": "日历", "ui.recordsHint": "回顾每一段投入的时间",
+  "ui.search": "搜索标签或备注", "ui.reset": "重置", "ui.timeRange": "时间段", "ui.loadMore": "显示更多",
+  "ui.overview": "投入概览", "ui.dailyAverage": "日均投入", "ui.activeDays": "活跃天数", "ui.dailyDetails": "所选月份每日明细",
+  "ui.allTags": "所有标签", "ui.noRecords": "这里还没有记录", "ui.emptyHint": "开始一次计时，或调整筛选条件。",
+  "ui.recordCount": "{count} 条记录 · 累计 {duration}", "ui.more": "更多操作", "ui.days": "{count} 天",
+  "ui.monthAverage": "按所选月份已过的日历天数计算，包含零记录日期。", "ui.currentMonth": "当前月份",
+  "modules.homeAI": "AI 总结（统计页）", "modules.homeForecast": "本月预测（统计页）", "modules.statsCalendar": "记录日历",
+  "records.monthTag": "本月标签汇总（当前月份）", "quote.label": "今日一句", "chart.tagDistribution": "标签用时分布", "chart.noTagData": "还没有标签用时数据"
+});
+Object.assign(I18N.en, {
+  "app.title": "FishTime", "nav.home": "Today", "nav.records": "Records", "nav.stats": "Insights",
+  "action.start": "Start timer", "action.pause": "Pause", "action.stop": "Finish & save", "ui.resume": "Resume",
+  "label.tag": "Tag", "label.note": "Note", "summary.today": "Today", "summary.monthToDate": "This month",
+  "placeholder.tag": "Reading, building…", "placeholder.note": "What are you working on?", "records.today": "Today's records",
+  "status.idle": "Ready when you are", "mode.default": "Light", "mode.dark": "Dark", "mode.system": "System",
+  "ui.local": "Stored on your Mac", "ui.timerHint": "Make a little room for focused work.", "ui.sessions": "Sessions today",
+  "ui.viewAll": "View all", "ui.list": "List", "ui.calendar": "Calendar", "ui.recordsHint": "A little perspective on your time",
+  "ui.search": "Search tags or notes", "ui.reset": "Reset", "ui.timeRange": "Time", "ui.loadMore": "Show more",
+  "ui.overview": "Time well spent", "ui.dailyAverage": "Daily average", "ui.activeDays": "Active days", "ui.dailyDetails": "Daily breakdown for selected month",
+  "ui.allTags": "All tags", "ui.noRecords": "No records here yet", "ui.emptyHint": "Start a timer, or try a different filter.",
+  "ui.recordCount": "{count} records · {duration} total", "ui.more": "More actions", "ui.days": "{count} days",
+  "ui.monthAverage": "Average per elapsed calendar day in the selected month, including days with no records.", "ui.currentMonth": "Current month",
+  "modules.homeAI": "AI summary (Insights)", "modules.homeForecast": "Monthly forecast (Insights)", "modules.statsCalendar": "Records calendar",
+  "records.monthTag": "Tags this month", "quote.label": "A little inspiration"
+});
+let recordView = "list";
+let historyLimit = 100;
+let selectedTheme = "mode-system";
 const chartModes = {
   tagDateChart: "bar",
   tagMonthChart: "bar"
@@ -672,6 +711,7 @@ function defaultBgmSettings() {
 
 function defaultModulePrefs() {
   return {
+    homeQuote: false,
     homeForecast: true,
     homeToday: true,
     homeAI: true,
@@ -821,6 +861,7 @@ function formatDuration(ms) {
   }
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
+  if (!hours) return currentLang === "en" ? `${minutes} min` : `${minutes} 分钟`;
   if (currentLang === "en") {
     return `${hours} h ${minutes} min`;
   }
@@ -1019,8 +1060,16 @@ function appendRecordActions(container, record) {
   deleteBtn.dataset.key = key;
   deleteBtn.textContent = t("action.delete");
 
-  container.appendChild(editBtn);
-  container.appendChild(deleteBtn);
+  const menu = document.createElement("details");
+  menu.className = "row-menu";
+  const trigger = document.createElement("summary");
+  trigger.textContent = "⋯";
+  trigger.setAttribute("aria-label", t("ui.more"));
+  trigger.title = t("ui.more");
+  const actions = document.createElement("div");
+  actions.className = "row-menu-items";
+  actions.appendChild(editBtn); actions.appendChild(deleteBtn);
+  menu.appendChild(trigger); menu.appendChild(actions); container.appendChild(menu);
 }
 
 function toTimeInputValue(isoString) {
@@ -1072,28 +1121,7 @@ function limitTagDisplay(label) {
 }
 
 function getTagColor(label) {
-  const palette = [
-    "#4caf50",
-    "#2196f3",
-    "#ff9800",
-    "#e91e63",
-    "#9c27b0",
-    "#00bcd4",
-    "#8bc34a",
-    "#ffc107",
-    "#ff5722",
-    "#607d8b",
-    "#3f51b5",
-    "#009688",
-    "#cddc39",
-    "#795548",
-    "#f06292",
-    "#ba68c8",
-    "#4dd0e1",
-    "#aed581",
-    "#ffb74d",
-    "#90a4ae"
-  ];
+  const palette = ["#51947a", "#698aaf", "#b68b58", "#9a7ca6", "#6c9ba0", "#b87973", "#8b9760", "#ad8d9b"];
   let hash = 0;
   for (const ch of label) {
     hash = (hash * 31 + ch.codePointAt(0)) >>> 0;
@@ -1260,48 +1288,46 @@ function applyLocale(lang) {
   updateToggleButtonLabels();
   setRandomQuote();
   updateSettingsOptions();
+  updateNavigation();
 }
 
 function setPage(page) {
-  currentPage = page === "stats" ? "stats" : "home";
+  currentPage = ["home", "records", "stats"].includes(page) ? page : "home";
   localStorage.setItem(STORAGE_KEY_PAGE, currentPage);
-
   applyModuleVisibility();
-
-  const homeBtn = document.getElementById("pageHomeBtn");
-  const statsBtn = document.getElementById("pageStatsBtn");
-  if (homeBtn) homeBtn.classList.toggle("active", currentPage === "home");
-  if (statsBtn) statsBtn.classList.toggle("active", currentPage === "stats");
+  updateNavigation();
   updateSettingsOptions();
 }
 
+function updateNavigation() {
+  [["home", "pageHomeBtn"], ["records", "pageRecordsBtn"], ["stats", "pageStatsBtn"]].forEach(([page, id]) => {
+    const button = document.getElementById(id);
+    if (!button) return;
+    button.classList.toggle("active", currentPage === page);
+    button.setAttribute("aria-current", currentPage === page ? "page" : "false");
+    button.title = t("nav." + page);
+  });
+  const title = document.getElementById("pageTitle");
+  if (title) title.textContent = t("nav." + currentPage);
+  const eyebrow = document.getElementById("pageEyebrow");
+  if (eyebrow) eyebrow.textContent = {home:"MAKE ROOM FOR FOCUS",records:"A RECORD OF YOUR DAYS",stats:"TIME, IN PERSPECTIVE"}[currentPage];
+}
+
 function applyModuleVisibility() {
-  const bgmFloating = document.getElementById("bgmFloating");
-  if (bgmFloating) {
-    bgmFloating.classList.remove("hidden");
-  }
   document.querySelectorAll(".page-section").forEach(el => {
-    const target = el.getAttribute("data-page");
-    if (!target) return;
-    let hide = target !== currentPage;
-    if (!hide && modulePrefs) {
-      let id = null;
-      if (target === "home") {
-        if (el.classList.contains("forecast")) id = "homeForecast";
-        if (el.classList.contains("records") && el.dataset.section === "todayRecords") id = "homeToday";
-        if (el.classList.contains("ai-summary")) id = "homeAI";
-      } else if (target === "stats") {
-        if (el.classList.contains("filters") && modulePrefs.statsDate === false) hide = true;
-        if (el.classList.contains("heatmap")) id = "statsCalendar";
-        if (el.classList.contains("records") && el.dataset.section === "monthTagRecords") id = "statsMonthTag";
-        if (el.classList.contains("records") && el.dataset.section === "monthTotals") id = "statsMonthTotals";
-        if (el.classList.contains("backup")) id = "statsBackup";
-      }
-      if (!hide && id && modulePrefs[id] === false) {
-        hide = true;
-      }
-    }
+    let hide = el.dataset.page !== currentPage;
+    const key = el.classList.contains("forecast") ? "homeForecast"
+      : el.classList.contains("ai-summary") ? "homeAI"
+      : el.classList.contains("quote-card") ? "homeQuote"
+      : el.classList.contains("heatmap") ? "statsCalendar"
+      : {todayRecords:"homeToday",monthTagRecords:"statsMonthTag",monthTotals:"statsMonthTotals"}[el.dataset.section];
+    if (key && modulePrefs && !modulePrefs[key]) hide = true;
+    if (el.dataset.recordPanel && el.dataset.recordPanel !== recordView) hide = true;
     el.classList.toggle("hidden", hide);
+  });
+  document.querySelectorAll("[data-record-view]").forEach(button => {
+    button.classList.toggle("active", button.dataset.recordView === recordView);
+    button.setAttribute("aria-pressed", String(button.dataset.recordView === recordView));
   });
 }
 
@@ -1312,7 +1338,7 @@ function updateSettingsOptions() {
 
   themeOptionButtons.forEach(btn => {
     const mode = btn.dataset.themeOption;
-    btn.classList.toggle("active", document.body.classList.contains(mode));
+    btn.classList.toggle("active", selectedTheme === mode);
   });
 
   pageOptionButtons.forEach(btn => {
@@ -1608,8 +1634,8 @@ function importFullBackup(parsed) {
 
   const prefs = parsed.preferences || {};
   if (I18N[prefs.language]) localStorage.setItem(STORAGE_KEY_LANG, prefs.language);
-  if (["home", "stats"].includes(prefs.page)) localStorage.setItem(STORAGE_KEY_PAGE, prefs.page);
-  if (["mode-default", "mode-color", "mode-dark"].includes(prefs.theme)) {
+  if (["home", "records", "stats"].includes(prefs.page)) localStorage.setItem(STORAGE_KEY_PAGE, prefs.page);
+  if (["mode-system", "mode-default", "mode-color", "mode-dark"].includes(prefs.theme)) {
     localStorage.setItem("fishtime-ui-mode", prefs.theme);
   }
   if (prefs.bgm && typeof prefs.bgm === "object") {
@@ -1810,13 +1836,13 @@ function renderMonthChart(days, dailyMap) {
     const x = padding.left + step * index + (step - barWidth) / 2;
     const y = padding.top + innerHeight - barHeight;
 
-    ctx.fillStyle = "#90caf9";
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--header-accent").trim() || "#176b57";
     ctx.fillRect(x, y, barWidth, barHeight);
 
     // X 轴日期标签（显示日）
     const parts = dateStr.split("-");
     const day = parts[2] || dateStr;
-    ctx.fillStyle = "#555";
+    ctx.fillStyle = colors.text;
     ctx.fillText(day, x + barWidth / 2, padding.top + innerHeight + 4);
 
     bars.push({
@@ -1842,6 +1868,7 @@ function renderTagChart(canvasId, labels, valuesMs, xLabel) {
   const ctx = canvas.getContext("2d");
   const dpr = window.devicePixelRatio || 1;
   const displayWidth = canvas.clientWidth || 400;
+  canvas.style.height = "";
   const displayHeight = canvas.clientHeight || 220;
   const colors = getChartColors();
   canvas.classList.toggle("is-empty", !labels.length);
@@ -1909,71 +1936,19 @@ function renderTagChart(canvasId, labels, valuesMs, xLabel) {
   }
 
   if (mode === "bar") {
-    ctx.strokeStyle = colors.axis;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(padding.left, padding.top);
-    ctx.lineTo(padding.left, padding.top + innerHeight);
-    ctx.lineTo(padding.left + innerWidth, padding.top + innerHeight);
-    ctx.stroke();
-
-    ctx.fillStyle = colors.text;
-    ctx.font = "11px -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial";
-    ctx.textAlign = "right";
-    ctx.textBaseline = "middle";
-    ctx.fillText("0", padding.left - 4, padding.top + innerHeight);
-    const topLabel = useMinutes ? Math.round(maxValue).toString() : maxValue.toFixed(1);
-    ctx.fillText(topLabel, padding.left - 4, padding.top);
-
-    ctx.save();
-    ctx.fillStyle = colors.text;
-    ctx.font = "12px -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    ctx.fillText(xAxisLabel, padding.left + innerWidth / 2, padding.top + innerHeight + 22);
-    ctx.restore();
-
-    ctx.save();
-    ctx.fillStyle = colors.text;
-    ctx.font = "12px -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    ctx.translate(padding.left - 30, padding.top + innerHeight / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText(unitLabel, 0, 0);
-    ctx.restore();
-
-    const count = labels.length;
-    const step = innerWidth / count;
-    const barWidth = step * 0.6;
-
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-
-    labels.forEach((label, index) => {
-      const value = valueArr[index];
-      const barHeight = (value / maxValue) * innerHeight;
-      const x = padding.left + step * index + (step - barWidth) / 2;
-      const y = padding.top + innerHeight - barHeight;
-
-      ctx.fillStyle = getTagColor(label);
-      ctx.fillRect(x, y, barWidth, barHeight);
-
-      ctx.fillStyle = colors.text;
-      const text = limitTagDisplay(label);
-      ctx.fillText(text, x + barWidth / 2, padding.top + innerHeight + 4);
-
-      items.push({
-        type: "bar",
-        x,
-        y,
-        width: barWidth,
-        height: barHeight,
-        label,
-        value,
-        unit: unitShort,
-        useMinutes
-      });
+    const ranked = labels.map((label,index)=>({label,value:valueArr[index]})).sort((a,b)=>b.value-a.value);
+    const rowHeight = 32;
+    const height = Math.max(150, ranked.length*rowHeight+20);
+    canvas.style.height = height+"px"; canvas.height = height*dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0); ctx.fillStyle=colors.background; ctx.fillRect(0,0,displayWidth,height);
+    const labelWidth = Math.min(110,displayWidth*0.24); const barWidth = Math.max(30,displayWidth-labelWidth-100);
+    ranked.forEach(({label,value},index)=>{
+      const y=12+index*rowHeight;
+      ctx.font="12px -apple-system, BlinkMacSystemFont, sans-serif"; ctx.textAlign="left"; ctx.textBaseline="middle";
+      ctx.fillStyle=colors.text; ctx.fillText(limitTagDisplay(label),8,y+10);
+      ctx.fillStyle=getTagColor(label); const width=value/maxValue*barWidth; ctx.fillRect(labelWidth,y,width,18);
+      ctx.fillStyle=colors.text; ctx.fillText(formatValueWithUnit(value,useMinutes,useMinutes?0:1),labelWidth+width+10,y+10);
+      items.push({type:"bar",x:labelWidth,y,width,height:18,label,value,unit:unitShort,useMinutes});
     });
   } else {
     const cx = displayWidth / 2;
@@ -2100,9 +2075,9 @@ function renderCalendarView() {
   const maxValue = Math.max(...valueArr, 1);
 
   function colorFor(v) {
-    if (!v) return "#f1f1f1";
+    if (!v) return getChartColors().background;
     const ratio = Math.min(1, v / maxValue);
-    const palette = ["#dceefc", "#b7dbf6", "#90c7f0", "#5aa6e4", "#2c7ecf"];
+    const palette = document.body.classList.contains("mode-dark") ? ["#26392f","#2b4437","#315241","#345d48","#37664f"] : ["#e3eee7","#cce0d4","#b7d5c2","#a1c7af","#8bb99e"];
     const idx = Math.min(palette.length - 1, Math.floor(ratio * palette.length));
     return palette[idx];
   }
@@ -2268,6 +2243,7 @@ function renderCalendarView() {
     }
   }
   renderCalendarDetails(calendarSelectedDate);
+  decorateRecordRows();
 }
 
 function renderCalendarDetails(dateStr) {
@@ -2348,93 +2324,77 @@ function renderCalendarDetails(dateStr) {
       : "该日期暂无 AI 总结。";
 }
 
-function renderFilterByDate() {
-  const input = document.getElementById("filterDate");
-  const summaryEl = document.getElementById("filterDateSummary");
-  const aiBox = document.getElementById("filterDateAiSummary");
-  const tbody = document.getElementById("filterDateBody");
-  if (!input || !summaryEl || !tbody) return;
+function emptyRecordRow(tbody, columns) {
+  const row = document.createElement("tr"); const cell = document.createElement("td");
+  cell.colSpan = columns; cell.className = "empty-records";
+  const title = document.createElement("strong"); title.textContent = t("ui.noRecords");
+  const hint = document.createElement("span"); hint.textContent = t("ui.emptyHint");
+  cell.appendChild(title); cell.appendChild(hint); row.appendChild(cell); tbody.appendChild(row);
+}
 
-  const dateStr = input.value;
-  if (!dateStr) {
-    summaryEl.textContent = t("filters.pickDate");
-    tbody.innerHTML = "";
-    renderTagChart("tagDateChart", [], [], t("chart.xAxisTagDay"));
-    if (aiBox) aiBox.textContent = "";
-    return;
-  }
-
-  const records = loadRecords();
-  const list = records.filter(r => r.date === dateStr);
-  const activeEntry = getActiveDurationsByDate(loadActiveSession())[dateStr];
-  const totalMs = sumDuration(list) + (activeEntry?.durationMs || 0);
-
-  summaryEl.textContent = t("filters.dateSummary", {
-    date: dateStr,
-    total: formatDuration(totalMs),
-    count: list.length + (activeEntry ? 1 : 0)
-  });
-
-  tbody.innerHTML = "";
-  list.forEach(r => {
-    const tr = document.createElement("tr");
-    const tdStart = document.createElement("td");
-    const tdEnd = document.createElement("td");
-    const tdDur = document.createElement("td");
-    const tdTag = document.createElement("td");
-    const tdNote = document.createElement("td");
-    const tdActions = document.createElement("td");
-    tdStart.textContent = r.startTimeText;
-    tdEnd.textContent = r.endTimeText;
-    tdDur.textContent = formatDuration(r.durationMs);
-    tdTag.textContent = r.tag || "";
-    tdNote.textContent = r.note || "";
-    tr.appendChild(tdStart);
-    tr.appendChild(tdEnd);
-    tr.appendChild(tdDur);
-    tr.appendChild(tdTag);
-    tr.appendChild(tdNote);
-    tdActions.className = "record-actions";
-    appendRecordActions(tdActions, r);
-    tr.appendChild(tdActions);
-    tbody.appendChild(tr);
-  });
-  if (activeEntry) {
-    const tr = document.createElement("tr");
-    [
-      formatTime(new Date(activeEntry.firstStartMs)),
-      currentLang === "en" ? "Now" : "当前",
-      formatDuration(activeEntry.durationMs),
-      "",
-      currentLang === "en" ? "In progress" : "计时中"
-    ].forEach(value => {
-      const td = document.createElement("td");
-      td.textContent = value;
-      tr.appendChild(td);
+function decorateRecordRows() {
+  ["todayRecordsBody", "filterDateBody", "calendarDateBody"].forEach(id => {
+    const body = document.getElementById(id);
+    if (!body) return;
+    body.querySelectorAll("tr").forEach(row => {
+      if (row.children.length < 6) return;
+      const tag = row.children[3]; const note = row.children[4];
+      note.classList.add("note-cell"); note.title = note.textContent;
+      if (tag.textContent && !tag.querySelector(".tag-badge")) {
+        const badge = document.createElement("span"); badge.className = "tag-badge";
+        badge.textContent = tag.textContent; badge.title = tag.textContent;
+        tag.textContent = ""; tag.appendChild(badge);
+      }
     });
-    tr.appendChild(document.createElement("td"));
-    tbody.appendChild(tr);
-  }
-
-  const tagMap = {};
-  list.forEach(r => {
-    const tag = (r.tag && r.tag.trim()) || t("tag.unlabeled");
-    if (!tagMap[tag]) tagMap[tag] = 0;
-    tagMap[tag] += r.durationMs || 0;
   });
-  const tags = Object.keys(tagMap);
-  const values = tags.map(t => tagMap[t]);
-  renderTagChart("tagDateChart", tags, values, t("chart.xAxisTagDay"));
+}
 
-  if (aiBox) {
-    const cached = aiSummaryCache[dateStr];
-    if (cached) {
-      aiBox.textContent = cached;
-    } else {
-      aiBox.textContent =
-        currentLang === "en" ? "No AI summary for this date." : "该日期暂无 AI 总结。";
-    }
+function renderFilterByDate() {
+  const tbody = document.getElementById("filterDateBody");
+  if (!tbody) return;
+  const records = loadRecords();
+  const search = (document.getElementById("recordSearch")?.value || "").trim().toLowerCase();
+  const date = document.getElementById("filterDate")?.value || "";
+  const tagSelect = document.getElementById("recordTagFilter");
+  let tag = tagSelect?.value || "";
+  if (tagSelect) {
+    tagSelect.innerHTML = "";
+    const option = document.createElement("option"); option.value = ""; option.textContent = t("ui.allTags"); tagSelect.appendChild(option);
+    Array.from(new Set(records.map(record => record.tag || "").filter(Boolean))).sort().forEach(label => {
+      const item = document.createElement("option"); item.value = label; item.textContent = label; tagSelect.appendChild(item);
+    });
+    tagSelect.value = tag;
+    tag = tagSelect.value;
   }
+  const list = records.filter(record => (!date || record.date === date) && (!tag || record.tag === tag)
+    && (!search || (String(record.tag || "") + " " + String(record.note || "")).toLowerCase().includes(search)))
+    .sort((a,b) => String(b.startTime || b.date).localeCompare(String(a.startTime || a.date)));
+  const summary = document.getElementById("filterDateSummary");
+  if (summary) summary.textContent = t("ui.recordCount", {count:list.length,duration:formatDuration(sumDuration(list))});
+  tbody.innerHTML = "";
+  list.slice(0,historyLimit).forEach(record => {
+    const row = document.createElement("tr");
+    [record.date || "—", (record.startTimeText || toTimeInputValue(record.startTime)) + "–" + (record.endTimeText || toTimeInputValue(record.endTime)), formatDuration(record.durationMs || 0), record.tag || "", record.note || ""].forEach(value => {
+      const cell = document.createElement("td"); cell.textContent = value; row.appendChild(cell);
+    });
+    const actions = document.createElement("td"); actions.className = "record-actions";
+    appendRecordActions(actions,record); row.appendChild(actions); tbody.appendChild(row);
+  });
+  if (!list.length) emptyRecordRow(tbody,6);
+  const more = document.getElementById("loadMoreRecords"); if (more) more.hidden = list.length <= historyLimit;
+  decorateRecordRows();
+}
+
+function formatClock(ms) {
+  const seconds = Math.max(0,Math.floor(ms/1000));
+  return [Math.floor(seconds/3600), Math.floor(seconds/60)%60, seconds%60].map(value => String(value).padStart(2,"0")).join(":");
+}
+
+function renderTimerState(active, nowMs = Date.now()) {
+  document.body.dataset.timerState = active?.state || "idle";
+  const display = document.getElementById("timerDisplay");
+  if (display) display.textContent = formatClock(getActiveElapsedMs(active,nowMs));
+  const start = document.getElementById("startBtn"); if (start) start.textContent = t(active?.state === "paused" ? "ui.resume" : "action.start");
 }
 
 function renderFilterByMonth() {
@@ -2454,7 +2414,7 @@ function renderFilterByMonth() {
 
   const records = loadRecords();
   const list = records.filter(r => r.date && r.date.startsWith(monthStr));
-  const totalMs = sumDuration(list);
+  let totalMs = sumDuration(list);
 
   const dailyMap = {};
   list.forEach(r => {
@@ -2464,7 +2424,16 @@ function renderFilterByMonth() {
     dailyMap[r.date] += r.durationMs || 0;
   });
 
+  Object.entries(getActiveDurationsByDate(loadActiveSession())).forEach(([date,entry]) => {
+    if (date.startsWith(monthStr)) { dailyMap[date] = (dailyMap[date] || 0) + entry.durationMs; totalMs += entry.durationMs; }
+  });
   const days = Object.keys(dailyMap).sort();
+  const [selectedYear, selectedMonth] = monthStr.split("-").map(Number);
+  const now = new Date(); const currentMonth = formatDate(now).slice(0,7);
+  const elapsedDays = monthStr > currentMonth ? 0 : monthStr === currentMonth ? now.getDate() : getDaysInMonth(selectedYear,selectedMonth);
+  const metrics = {statsTotal:formatDuration(totalMs),statsAverage:formatAvgDuration(elapsedDays ? totalMs/elapsedDays : 0),statsDays:t("ui.days",{count:days.filter(date=>dailyMap[date]>0).length})};
+  Object.entries(metrics).forEach(([id,value]) => { const el = document.getElementById(id); if (el) el.textContent = value; });
+  const average = document.getElementById("statsAverage"); if (average) average.title = t("ui.monthAverage");
   summaryEl.textContent = t("filters.monthSummary", {
     month: monthStr,
     total: formatDuration(totalMs),
@@ -2497,6 +2466,8 @@ function renderFilterByMonth() {
 }
 
 function render() {
+  updateNavigation();
+  renderTimerState(loadActiveSession());
   const traySync = syncTray();
   if (traySync) traySync.catch(error => console.error("Menu bar sync failed", error));
   if (!modulePrefs) {
@@ -2540,6 +2511,7 @@ function render() {
 
   document.getElementById("todayTotal").textContent = formatDuration(todayTotalMs);
   document.getElementById("monthTotal").textContent = formatDuration(monthTotalMs);
+  const countEl = document.getElementById("todaySessionCount"); if (countEl) countEl.textContent = String(todayRecords.length);
 
   const tbody = document.getElementById("todayRecordsBody");
   tbody.innerHTML = "";
@@ -2696,13 +2668,10 @@ function render() {
     document.getElementById("sessionDuration").textContent = "";
   }
 
-  if (currentPage === "stats") {
-    if (modulePrefs.statsDate) {
-      renderFilterByDate();
-      renderFilterByMonth();
-    }
-    if (modulePrefs.statsCalendar) renderCalendarView();
-  }
+  if (!todayRecords.length) emptyRecordRow(tbody,6);
+  if (currentPage === "records") { renderFilterByDate(); if (recordView === "calendar" && modulePrefs.statsCalendar) renderCalendarView(); }
+  if (currentPage === "stats") renderFilterByMonth();
+  decorateRecordRows();
 
   const cachedSummary = aiSummaryCache[todayStr];
   if (cachedSummary && document.getElementById("aiSummaryBox")) {
@@ -2904,7 +2873,7 @@ function renderForecast() {
     ctx.stroke();
   }
 
-  ctx.strokeStyle = "#1976d2";
+  ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue("--header-accent").trim() || "#176b57";
   ctx.lineWidth = 2;
   ctx.setLineDash([]);
   drawSmoothLine(0, todayIndex);
@@ -2969,6 +2938,7 @@ function setupTimers() {
     const active = loadActiveSession();
     const durationEl = document.getElementById("sessionDuration");
     const activeTotalMs = getActiveElapsedMs(active, now.getTime());
+    renderTimerState(active,now.getTime());
     if (active) {
       if (durationEl) {
         durationEl.textContent = t("status.sessionDuration", {
@@ -2992,7 +2962,8 @@ function setupTimers() {
     } else if (minuteKey !== lastSummaryMinute) {
       lastSummaryMinute = minuteKey;
       updateLiveTotals(now, active);
-      if (currentPage === "home" && modulePrefs?.homeForecast) renderForecast();
+      if (currentPage === "stats") { renderFilterByMonth(); if (modulePrefs?.homeForecast) renderForecast(); }
+      if (currentPage === "records" && recordView === "calendar") renderCalendarView();
     }
   };
 
@@ -3235,11 +3206,6 @@ function setupEvents() {
       renderFilterByDate();
     });
   }
-  if (filterDateInput) {
-    filterDateInput.addEventListener("change", () => {
-      renderFilterByDate();
-    });
-  }
 
   if (filterMonthBtn) {
     filterMonthBtn.addEventListener("click", () => {
@@ -3318,7 +3284,8 @@ function setupEvents() {
 
   function openDeleteDialog(key) {
     pendingDeleteKey = key;
-    if (deleteDialogMessage) deleteDialogMessage.textContent = t("record.deleteConfirm");
+    const target = loadRecords().find(record => getRecordKey(record) === key);
+    if (deleteDialogMessage) deleteDialogMessage.textContent = t("record.deleteConfirm") + (target ? "\n" + target.date + " · " + (target.tag || t("tag.unlabeled")) + " · " + formatDuration(target.durationMs || 0) : "");
     if (deleteDialog) deleteDialog.classList.add("visible");
   }
 
@@ -3546,7 +3513,7 @@ window.addEventListener("DOMContentLoaded", () => {
   const now = new Date();
   const filterDate = document.getElementById("filterDate");
   if (filterDate) {
-    filterDate.value = formatDate(now);
+    filterDate.value = "";
   }
   const filterMonth = document.getElementById("filterMonth");
   if (filterMonth) {
@@ -3562,17 +3529,23 @@ window.addEventListener("DOMContentLoaded", () => {
   const modeDarkBtn = document.getElementById("modeDarkBtn");
 
   function setMode(mode) {
+    selectedTheme = ["mode-system","mode-default","mode-color","mode-dark"].includes(mode) ? mode : "mode-system";
+    mode = selectedTheme === "mode-system" ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "mode-dark" : "mode-default") : selectedTheme;
     document.body.classList.remove("mode-default", "mode-color", "mode-dark");
     document.body.classList.add(mode);
     if (modeDefaultBtn) modeDefaultBtn.classList.toggle("active", mode === "mode-default");
     if (modeColorBtn) modeColorBtn.classList.toggle("active", mode === "mode-color");
     if (modeDarkBtn) modeDarkBtn.classList.toggle("active", mode === "mode-dark");
-    localStorage.setItem("fishtime-ui-mode", mode);
+    localStorage.setItem("fishtime-ui-mode", selectedTheme);
     updateSettingsOptions();
   }
 
-  const savedMode = localStorage.getItem("fishtime-ui-mode") || "mode-default";
+  const savedMode = localStorage.getItem("fishtime-ui-mode") || "mode-system";
   setMode(savedMode);
+  const appearance = window.matchMedia("(prefers-color-scheme: dark)");
+  const updateAppearance = () => { if (selectedTheme === "mode-system") { setMode("mode-system"); render(); } };
+  if (appearance.addEventListener) appearance.addEventListener("change",updateAppearance);
+  else appearance.addListener(updateAppearance);
 
   if (modeDefaultBtn) {
     modeDefaultBtn.addEventListener("click", () => setMode("mode-default"));
@@ -3598,12 +3571,64 @@ window.addEventListener("DOMContentLoaded", () => {
     updateAiStatus(t(apiKey ? "ai.statusReady" : "ai.statusNoKey"));
   });
 
+  const sidebarSelect = document.getElementById("sidebarWorkspaceSelect");
+  sidebarSelect?.addEventListener("change",() => setWorkspace(sidebarSelect.value));
+  const recordsButton = document.getElementById("pageRecordsBtn");
+  recordsButton?.addEventListener("click",() => { setPage("records"); render(); });
+  document.getElementById("viewAllRecordsBtn")?.addEventListener("click",() => { setPage("records"); render(); });
+  document.querySelectorAll("[data-record-view]").forEach(button => button.addEventListener("click",() => { recordView = button.dataset.recordView; render(); }));
+  ["recordSearch","recordTagFilter","filterDate"].forEach(id => {
+    const el = document.getElementById(id);
+    el?.addEventListener(id === "recordTagFilter" ? "change" : "input",() => { historyLimit=100; renderFilterByDate(); });
+  });
+  document.getElementById("resetRecordFilters")?.addEventListener("click",() => {
+    ["recordSearch","recordTagFilter","filterDate"].forEach(id => { document.getElementById(id).value=""; }); historyLimit=100; renderFilterByDate();
+  });
+  document.getElementById("loadMoreRecords")?.addEventListener("click",() => { historyLimit+=100; renderFilterByDate(); });
+  document.addEventListener("click",event => {
+    document.querySelectorAll(".row-menu[open]").forEach(menu => { if (!menu.contains(event.target) || event.target.closest("button")) menu.removeAttribute("open"); });
+  });
+  document.addEventListener("toggle",event => {
+    const menu = event.target;
+    if (!menu.classList?.contains("row-menu") || !menu.open) return;
+    const rect = menu.querySelector("summary").getBoundingClientRect();
+    const popup = menu.querySelector(".row-menu-items");
+    popup.style.left = Math.max(12, rect.right - 140) + "px";
+    popup.style.top = Math.max(12, Math.min(window.innerHeight - 100, rect.bottom + 5)) + "px";
+  },true);
+  document.addEventListener("scroll",() => {
+    document.querySelectorAll(".row-menu[open]").forEach(menu=>menu.removeAttribute("open"));
+  },true);
+  const dialogFocus = new WeakMap();
+  document.querySelectorAll(".settings-panel,.edit-dialog").forEach(dialog => {
+    const observer = new MutationObserver(() => {
+      if (dialog.classList.contains("visible")) {
+        if (!dialogFocus.has(dialog)) {
+          dialogFocus.set(dialog,document.activeElement);
+          dialog.querySelector("button,input,select,summary")?.focus();
+        }
+      } else if (dialogFocus.has(dialog)) {
+        const previous = dialogFocus.get(dialog); dialogFocus.delete(dialog); previous?.focus();
+      }
+    });
+    observer.observe(dialog,{attributes:true,attributeFilter:["class"]});
+    dialog.addEventListener("keydown",event => {
+      if (event.key !== "Tab") return;
+      const items = Array.from(dialog.querySelectorAll("button:not(:disabled),input:not(:disabled),select,summary,[tabindex='0']")).filter(el=>el.getClientRects().length);
+      if (!items.length) return;
+      const first=items[0],last=items[items.length-1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    });
+  });
+  document.addEventListener("keydown",event => {
+    if (event.key === "Escape") { closeSettings(); closeAbout(); document.querySelectorAll(".edit-dialog.visible").forEach(dialog=>dialog.classList.remove("visible")); document.querySelectorAll(".row-menu[open]").forEach(menu=>menu.removeAttribute("open")); }
+  });
   const savedPage = localStorage.getItem(STORAGE_KEY_PAGE) || "home";
   setPage(savedPage);
 
   function openSettings() {
     if (settingsPanel) {
-      document.body.classList.add("settings-only");
       settingsPanel.classList.add("visible");
     }
   }
@@ -3797,6 +3822,7 @@ window.addEventListener("DOMContentLoaded", () => {
       const mode = btn.dataset.themeOption;
       if (mode) {
         setMode(mode);
+        render();
       }
     });
   });
@@ -3940,11 +3966,24 @@ window.addEventListener("DOMContentLoaded", () => {
   render();
   setupEvents();
   setupTimers();
+  document.querySelectorAll(".sortable").forEach(header => {
+    header.tabIndex = 0;
+    header.addEventListener("keydown",event => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); header.click(); }
+    });
+  });
 
   let resizeRenderTimer = null;
   window.addEventListener("resize", () => {
     window.clearTimeout(resizeRenderTimer);
-    resizeRenderTimer = window.setTimeout(render, 150);
+    // CSS handles layout changes. Only canvases need a redraw; rebuilding the
+    // records table here would dismiss a menu or move keyboard focus.
+    resizeRenderTimer = window.setTimeout(() => {
+      if (currentPage === "stats") {
+        renderFilterByMonth();
+        if (modulePrefs.homeForecast) renderForecast();
+      }
+    }, 150);
   });
 
   if (settingsWindowMode) {

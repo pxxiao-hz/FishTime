@@ -1,6 +1,6 @@
 [package]
 name = "fishtime"
-version = "4.1.1"
+version = "5.0.0"
 description = "A lightweight local work timer"
 authors = ["FishTime"]
 edition = "2021"
