@@ -1,9 +1,10 @@
 {
   "name": "fishtime",
-  "version": "4.0.7",
+  "version": "4.1.1",
   "description": "工作时长计时器桌面应用",
   "productName": "FishTime",
   "scripts": {
+    "test": "node --test scripts/test-tray.cjs",
     "prepare:web": "node scripts/prepare-web.js",
     "start": "tauri dev",
     "dist": "tauri build",

@@ -9,7 +9,95 @@ const STORAGE_KEY_MODULES = "fishtime-modules";
 const STORAGE_KEY_BGM = "fishtime-bgm";
 const DEFAULT_WORKSPACE = "default";
 const DEFAULT_LANG = "zh";
-const APP_VERSION_FALLBACK = "4.0.7";
+const APP_VERSION_FALLBACK = "4.1.1";
+let trayReady = false;
+let trayRevision = Date.now();
+
+function syncTray() {
+  if (!trayReady) return;
+  const active = loadActiveSession();
+  const nowMs = Date.now();
+  // Preserve a just-started zero-length segment: filtering it through the UI's
+  // elapsed-time helper would freeze the native clock until the next render.
+  const intervals = Array.isArray(active?.segments)
+    ? active.segments.map(segment => ({
+      start_ms: new Date(segment.start).getTime(),
+      end_ms: segment.end ? new Date(segment.end).getTime() : (active.state === "running" ? null : nowMs)
+    })).filter(interval => Number.isFinite(interval.start_ms)
+      && (interval.end_ms === null || Number.isFinite(interval.end_ms)))
+    : getActiveIntervals(active, nowMs).map(interval => ({
+      start_ms: interval.startMs, end_ms: interval.endMs
+    }));
+  if (active?.state === "running" && !Array.isArray(active.segments)) {
+    // Legacy sessions may contain both accumulated time and an open segment.
+    const startMs = new Date(active.start).getTime();
+    let index = -1;
+    for (let i = intervals.length - 1; i >= 0; i -= 1) {
+      if (intervals[i].start_ms === startMs) { index = i; break; }
+    }
+    if (index >= 0) intervals[index].end_ms = null;
+    else if (Number.isFinite(startMs)) intervals.push({ start_ms: startMs, end_ms: null });
+  }
+  const dailyTotals = {};
+  loadRecords().forEach(record => {
+    const duration = Number(record.durationMs);
+    if (record.date && Number.isFinite(duration) && duration > 0) {
+      dailyTotals[record.date] = (dailyTotals[record.date] || 0) + Math.round(duration);
+    }
+  });
+  return tauriInvoke("sync_tray", { snapshot: {
+    revision: ++trayRevision,
+    workspace: currentWorkspace,
+    language: currentLang,
+    state: active?.state || "idle",
+    intervals,
+    daily_totals: dailyTotals
+  } });
+}
+
+function startSession() {
+  const active = loadActiveSession();
+  const now = new Date();
+  if (!active) {
+    saveActiveSession({
+      start: now.toISOString(), firstStart: now.toISOString(), date: formatDate(now),
+      segments: [{ start: now.toISOString() }], state: "running"
+    });
+  } else if (active.state === "paused") {
+    let segments;
+    if (Array.isArray(active.segments)) {
+      segments = [...active.segments, { start: now.toISOString() }];
+    } else {
+      const legacyStart = new Date(active.firstStart || active.start || now);
+      const legacyEnd = new Date(legacyStart.getTime() + Math.max(0, Number(active.accumulatedMs) || 0));
+      segments = legacyEnd > legacyStart
+        ? [{ start: legacyStart.toISOString(), end: legacyEnd.toISOString() }, { start: now.toISOString() }]
+        : [{ start: now.toISOString() }];
+    }
+    saveActiveSession({ ...active, start: now.toISOString(), segments, state: "running" });
+  }
+  render();
+}
+
+function pauseSession() {
+  const active = loadActiveSession();
+  if (!active || active.state !== "running") return;
+  saveActiveSession(closeRunningSegment(active, new Date().toISOString()));
+  render();
+}
+
+function pauseAllSessions() {
+  const endIso = new Date().toISOString();
+  workspaces.forEach(workspace => {
+    const key = `${STORAGE_KEY_ACTIVE}:${workspace}`;
+    const raw = localStorage.getItem(key);
+    if (!raw) return;
+    const active = JSON.parse(raw);
+    if (active?.state === "running") {
+      localStorage.setItem(key, JSON.stringify(closeRunningSegment(active, endIso)));
+    }
+  });
+}
 
 const chartHitboxes = {};
 let chartTooltipEl = null;
@@ -2409,6 +2497,8 @@ function renderFilterByMonth() {
 }
 
 function render() {
+  const traySync = syncTray();
+  if (traySync) traySync.catch(error => console.error("Menu bar sync failed", error));
   if (!modulePrefs) {
     loadModulePrefs();
   }
@@ -3088,39 +3178,9 @@ function setupEvents() {
     });
   }
 
-  startBtn.addEventListener("click", () => {
-    const active = loadActiveSession();
-    const now = new Date();
-    if (!active) {
-      saveActiveSession({
-        start: now.toISOString(),
-        firstStart: now.toISOString(),
-        date: formatDate(now),
-        segments: [{ start: now.toISOString() }],
-        state: "running"
-      });
-    } else if (active.state === "paused") {
-      let segments;
-      if (Array.isArray(active.segments)) {
-        segments = [...active.segments, { start: now.toISOString() }];
-      } else {
-        const legacyStart = new Date(active.firstStart || active.start || now);
-        const legacyEnd = new Date(legacyStart.getTime() + Math.max(0, Number(active.accumulatedMs) || 0));
-        segments = legacyEnd > legacyStart
-          ? [{ start: legacyStart.toISOString(), end: legacyEnd.toISOString() }, { start: now.toISOString() }]
-          : [{ start: now.toISOString() }];
-      }
-      saveActiveSession({
-        ...active,
-        start: now.toISOString(),
-        segments,
-        state: "running"
-      });
-    }
-    render();
-  });
+  startBtn.addEventListener("click", startSession);
 
-  stopBtn.addEventListener("click", () => {
+  function finishSession() {
     const active = loadActiveSession();
     if (!active) {
       return;
@@ -3138,17 +3198,35 @@ function setupEvents() {
     if (tagInput) {
       syncChipWithInput(tagInput, tagChip, tagChipText);
     }
-  });
+  }
+  stopBtn.addEventListener("click", finishSession);
 
   if (pauseBtn) {
-    pauseBtn.addEventListener("click", () => {
-      const active = loadActiveSession();
-      if (!active || active.state === "paused" || !active.start) {
-        return;
+    pauseBtn.addEventListener("click", pauseSession);
+  }
+
+  const nativeEvents = window.__TAURI__?.event;
+  if (nativeEvents) {
+    nativeEvents.listen("timer:action", async event => {
+      try {
+        if (event.payload === "start") startSession();
+        else if (event.payload === "pause") pauseSession();
+        else if (event.payload === "stop") finishSession();
+        else if (event.payload === "quit") {
+          pauseAllSessions();
+          await tauriInvoke("exit_app");
+        }
+      } catch (error) {
+        console.error(error);
+        alert(currentLang === "en"
+          ? "Unable to save the timer. Please open FishTime and try again."
+          : "计时状态保存失败，请打开 FishTime 检查后重试。");
       }
-      const now = new Date();
-      saveActiveSession(closeRunningSegment(active, now.toISOString()));
-      render();
+    }).then(() => {
+      trayReady = true;
+      return syncTray();
+    }).catch(error => {
+      console.error("Menu bar initialization failed", error);
     });
   }
 

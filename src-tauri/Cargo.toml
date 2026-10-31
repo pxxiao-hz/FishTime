@@ -1,6 +1,6 @@
 [package]
 name = "fishtime"
-version = "4.0.7"
+version = "4.1.1"
 description = "A lightweight local work timer"
 authors = ["FishTime"]
 edition = "2021"
@@ -13,7 +13,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
+serde = { version = "1", features = ["derive"] }
+chrono = "0.4"
 
 [profile.release]
 panic = "abort"

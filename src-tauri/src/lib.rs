@@ -1,8 +1,9 @@
+use std::process::Command;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder},
     Emitter,
 };
-use std::process::Command;
+mod tray;
 
 fn keychain_service(provider: &str) -> Result<String, String> {
     match provider {
@@ -15,7 +16,14 @@ fn keychain_service(provider: &str) -> Result<String, String> {
 fn load_api_key(provider: String) -> Result<String, String> {
     let service = keychain_service(&provider)?;
     let output = Command::new("/usr/bin/security")
-        .args(["find-generic-password", "-a", "FishTime", "-s", &service, "-w"])
+        .args([
+            "find-generic-password",
+            "-a",
+            "FishTime",
+            "-s",
+            &service,
+            "-w",
+        ])
         .output()
         .map_err(|error| error.to_string())?;
     if output.status.success() {
@@ -35,7 +43,16 @@ fn save_api_key(provider: String, api_key: String) -> Result<(), String> {
         return Ok(());
     }
     let output = Command::new("/usr/bin/security")
-        .args(["add-generic-password", "-U", "-a", "FishTime", "-s", &service, "-w", &api_key])
+        .args([
+            "add-generic-password",
+            "-U",
+            "-a",
+            "FishTime",
+            "-s",
+            &service,
+            "-w",
+            &api_key,
+        ])
         .output()
         .map_err(|error| error.to_string())?;
     if output.status.success() {
@@ -52,10 +69,27 @@ fn app_version(app: tauri::AppHandle) -> String {
 
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![load_api_key, save_api_key, app_version])
+        .invoke_handler(tauri::generate_handler![
+            load_api_key,
+            save_api_key,
+            app_version,
+            tray::sync_tray,
+            tray::exit_app
+        ])
+        .on_window_event(|window, event| {
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .setup(|app| {
-            let about = MenuItemBuilder::with_id("app:about", "About FishTime")
-                .build(app)?;
+            // Match LSUIElement in packaged builds, including when running via
+            // `tauri dev`: keep windows interactive without a Dock icon.
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            let about = MenuItemBuilder::with_id("app:about", "About FishTime").build(app)?;
             let new_workspace = MenuItemBuilder::with_id("workspace:new", "New Workspace")
                 .accelerator("CmdOrCtrl+Shift+N")
                 .build(app)?;
@@ -92,18 +126,48 @@ pub fn run() {
                 .items(&[&app_menu, &edit_menu, &window_menu])
                 .build()?;
             app.set_menu(menu)?;
+            tray::setup(app)?;
 
             app.on_menu_event(|app, event| {
                 let event_name = event.id().0.as_str();
+                match event_name {
+                    "tray:open" => tray::show_main(app),
+                    "tray:about" | "tray:settings" => {
+                        tray::show_main(app);
+                        let target = if event_name == "tray:about" {
+                            "app:about"
+                        } else {
+                            "settings:open"
+                        };
+                        let _ = app.emit_to("main", target, ());
+                    }
+                    "tray:quit" => tray::request_quit(app),
+                    "tray:start" | "tray:pause" | "tray:stop" => {
+                        let _ = app.emit_to("main", "timer:action", &event_name[5..]);
+                    }
+                    _ => {}
+                }
                 if matches!(
                     event_name,
                     "app:about" | "workspace:new" | "workspace:switch" | "settings:open"
                 ) {
+                    tray::show_main(app);
                     let _ = app.emit(event_name, ());
                 }
             });
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running FishTime");
+        .build(tauri::generate_context!())
+        .expect("error while building FishTime")
+        .run(|app, event| match event {
+            tauri::RunEvent::ExitRequested {
+                code: None, api, ..
+            } => {
+                api.prevent_exit();
+                tray::request_quit(app);
+            }
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Reopen { .. } => tray::show_main(app),
+            _ => {}
+        });
 }
