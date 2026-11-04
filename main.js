@@ -9,7 +9,7 @@ const STORAGE_KEY_MODULES = "fishtime-modules";
 const STORAGE_KEY_BGM = "fishtime-bgm";
 const DEFAULT_WORKSPACE = "default";
 const DEFAULT_LANG = "zh";
-const APP_VERSION_FALLBACK = "5.3.0";
+const APP_VERSION_FALLBACK = "5.3.1";
 let trayReady = false;
 let trayRevision = Date.now();
 
