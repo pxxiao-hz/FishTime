@@ -28,6 +28,7 @@ pub struct Snapshot {
 pub struct TrayState {
     snapshot: Mutex<Option<Snapshot>>,
     last_frame: Mutex<Option<(u64, u64, u64)>>,
+    update_version: Mutex<Option<String>>,
     status: MenuItem<tauri::Wry>,
     workspace: MenuItem<tauri::Wry>,
     session: MenuItem<tauri::Wry>,
@@ -105,11 +106,30 @@ pub fn sync_tray(app: tauri::AppHandle, snapshot: Snapshot) {
     refresh(&app);
 }
 
+#[tauri::command]
+pub fn set_update_badge(app: tauri::AppHandle, version: Option<String>) -> Result<(), String> {
+    if version.as_ref().is_some_and(|value| {
+        value.is_empty()
+            || value.len() > 64
+            || !value
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || b".+-".contains(&c))
+    }) {
+        return Err("invalid_update_version".into());
+    }
+    let state = app.state::<TrayState>();
+    *state.update_version.lock().unwrap() = version;
+    *state.last_frame.lock().unwrap() = None;
+    refresh(&app);
+    Ok(())
+}
+
 fn refresh(app: &tauri::AppHandle) {
     let state = app.state::<TrayState>();
     let snapshot = state.snapshot.lock().unwrap().clone();
     let Some(snapshot) = snapshot else { return };
     let en = snapshot.language == "en";
+    let update_version = state.update_version.lock().unwrap().clone();
     let now = Local::now();
     let now_ms = now.timestamp_millis();
     let date = now.date_naive();
@@ -144,7 +164,7 @@ fn refresh(app: &tauri::AppHandle) {
         (_, true) => "Ready",
         (_, false) => "未在计时",
     };
-    let title = if active {
+    let mut title = if active {
         format!(
             "{} {}",
             if running { "▶" } else { "Ⅱ" },
@@ -153,9 +173,23 @@ fn refresh(app: &tauri::AppHandle) {
     } else {
         "FishTime".to_string()
     };
+    if update_version.is_some() {
+        title.push_str(" •");
+    }
     if let Some(tray) = app.tray_by_id("timer") {
         let _ = tray.set_title(Some(&title));
-        let _ = tray.set_tooltip(Some(format!("FishTime · {status}")));
+        let tooltip = match &update_version {
+            Some(version) => format!(
+                "FishTime · {status} · {} {version}",
+                if en {
+                    "Update available"
+                } else {
+                    "有新版本"
+                }
+            ),
+            None => format!("FishTime · {status}"),
+        };
+        let _ = tray.set_tooltip(Some(tooltip));
     }
     let _ = state.status.set_text(status);
     let _ = state.workspace.set_text(format!(
@@ -199,11 +233,24 @@ fn refresh(app: &tauri::AppHandle) {
         "打开 FishTime"
     });
     let _ = state.about.set_text("About FishTime");
-    let _ = state.update.set_text(if en {
-        "Check for Updates…"
-    } else {
-        "检查更新…"
-    });
+    let update_label = match &update_version {
+        Some(version) => format!(
+            "{} {version}…",
+            if en {
+                "Update available"
+            } else {
+                "发现新版本"
+            }
+        ),
+        None => {
+            if en {
+                "Check for Updates…".into()
+            } else {
+                "检查更新…".into()
+            }
+        }
+    };
+    let _ = state.update.set_text(update_label);
     let _ = state
         .settings
         .set_text(if en { "Settings" } else { "设置" });
@@ -260,6 +307,7 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
     app.manage(TrayState {
         snapshot: Mutex::new(None),
         last_frame: Mutex::new(None),
+        update_version: Mutex::new(None),
         status,
         workspace,
         session,
@@ -274,11 +322,19 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
         quit,
     });
     let handle = app.handle().clone();
-    std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_secs(1));
-        let app = handle.clone();
-        if handle.run_on_main_thread(move || refresh(&app)).is_err() {
-            break;
+    std::thread::spawn(move || {
+        let mut seconds = 0u8;
+        loop {
+            std::thread::sleep(Duration::from_secs(1));
+            let app = handle.clone();
+            if handle.run_on_main_thread(move || refresh(&app)).is_err() {
+                break;
+            }
+            seconds += 1;
+            if seconds >= 60 {
+                seconds = 0;
+                let _ = handle.emit_to("main", "updater:tick", ());
+            }
         }
     });
     Ok(())

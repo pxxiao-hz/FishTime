@@ -81,6 +81,7 @@ pub fn run() {
             app_version,
             tray::sync_tray,
             tray::exit_app,
+            tray::set_update_badge,
             updates::check_for_update,
             updates::download_update,
             updates::install_update,

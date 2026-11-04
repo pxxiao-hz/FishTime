@@ -9,7 +9,7 @@ const STORAGE_KEY_MODULES = "fishtime-modules";
 const STORAGE_KEY_BGM = "fishtime-bgm";
 const DEFAULT_WORKSPACE = "default";
 const DEFAULT_LANG = "zh";
-const APP_VERSION_FALLBACK = "5.2.0";
+const APP_VERSION_FALLBACK = "5.3.0";
 let trayReady = false;
 let trayRevision = Date.now();
 
@@ -1301,6 +1301,7 @@ function applyLocale(lang) {
   updateSettingsOptions();
   updateNavigation();
   window.FishTimeMusic?.refresh();
+  window.FishTimeUpdater?.refresh();
   updateBgmUI();
 }
 
@@ -1553,6 +1554,7 @@ function exportData() {
     currentWorkspace,
     workspaceData,
     preferences: {
+      autoUpdateChecks: window.FishTimeUpdater?.automaticEnabled ?? true,
       language: localStorage.getItem(STORAGE_KEY_LANG) || DEFAULT_LANG,
       page: localStorage.getItem(STORAGE_KEY_PAGE) || "home",
       theme: localStorage.getItem("fishtime-ui-mode") || "mode-default",
@@ -1646,6 +1648,7 @@ function importFullBackup(parsed) {
   saveWorkspaceMeta();
 
   const prefs = parsed.preferences || {};
+  if(typeof prefs.autoUpdateChecks==='boolean')window.FishTimeUpdater?.setAutomaticEnabled(prefs.autoUpdateChecks);
   if (I18N[prefs.language]) localStorage.setItem(STORAGE_KEY_LANG, prefs.language);
   if (["home", "records", "stats"].includes(prefs.page)) localStorage.setItem(STORAGE_KEY_PAGE, prefs.page);
   if (["mode-system", "mode-default", "mode-color", "mode-dark"].includes(prefs.theme)) {
@@ -3619,7 +3622,7 @@ window.addEventListener("DOMContentLoaded", () => {
       if (dialog.classList.contains("visible")) {
         if (!dialogFocus.has(dialog)) {
           dialogFocus.set(dialog,document.activeElement);
-          dialog.querySelector("button,input,select,summary")?.focus();
+          Array.from(dialog.querySelectorAll("button:not(:disabled),input:not(:disabled),select,summary")).find(element=>element.getClientRects().length)?.focus();
         }
       } else if (dialogFocus.has(dialog)) {
         const previous = dialogFocus.get(dialog); dialogFocus.delete(dialog); previous?.focus();

@@ -20,6 +20,7 @@
   <main class="app" id="mainContent">
     <header class="header"><div><p class="eyebrow" id="pageEyebrow">MAKE ROOM FOR FOCUS</p><h1 id="pageTitle">今天</h1></div><div class="datetime"><span id="todayText"></span><span id="nowTime" hidden></span></div></header>
 
+    <aside id="updateBanner" class="update-banner" hidden role="status" aria-live="polite"><span id="updateBannerText"></span><div class="section-actions"><button id="updateBannerViewBtn" type="button">查看更新</button><button id="updateBannerLaterBtn" type="button">24 小时后提醒</button><button id="updateBannerSkipBtn" type="button">跳过此版本</button></div></aside>
     <section class="controls page-section" data-page="home" aria-label="计时器">
       <div class="status"><span class="status-dot"></span><span id="sessionStatus">准备好开始了吗</span></div>
       <div id="timerDisplay" class="timer-display" aria-label="本次计时时长">00:00:00</div><span id="sessionDuration" class="sr-only"></span>
@@ -105,7 +106,8 @@
       </div>
       <div class="settings-body">
         <div class="settings-row"><span class="settings-label" data-i18n="music.title">本地音乐库</span><button id="settingsMusicBtn" type="button" data-i18n="music.manage">管理曲目</button></div>
-        <div class="settings-row"><span class="settings-label" data-i18n="updates.title">软件更新</span><button id="settingsCheckUpdateBtn" type="button" data-i18n="updates.check">检查更新</button></div>
+        <div class="settings-row"><span class="settings-label" data-i18n="updates.title">软件更新</span><span id="settingsUpdateBadge" class="tag-badge" hidden>有新版本</span><button id="settingsCheckUpdateBtn" type="button" data-i18n="updates.check">检查更新</button></div>
+        <div class="update-preferences"><label class="module-toggle"><input id="updateAutoEnabled" type="checkbox" checked><span id="updateAutoLabel">自动检查更新</span></label><p id="updateAutoHint" class="settings-hint"></p><p id="updateLastChecked" class="settings-hint"></p><div id="updateSkippedRow" hidden><span id="updateSkippedText" class="settings-hint"></span><button id="updateRestoreBtn" class="text-button" type="button">恢复此版本提示</button></div></div>
         <div class="settings-row">
           <span class="settings-label" data-i18n="settings.language">语言</span>
           <div class="settings-options">
@@ -238,7 +240,7 @@
       <p id="updateStatus" role="status" aria-live="polite"></p>
       <progress id="updateProgress" hidden aria-label="下载进度"></progress><span id="updateProgressText"></span>
       <pre id="updateNotes"></pre><p id="updateNotice" class="settings-hint"></p>
-      <div class="edit-dialog-actions"><button id="updateManualBtn" type="button">手动下载</button><button id="updateCheckBtn" type="button">检查更新</button><button id="updateInstallBtn" type="button" hidden>下载并安装</button><button id="updateCloseBtn" type="button">关闭</button></div>
+      <div class="update-reminder-actions"><button id="updateLaterBtn" type="button" hidden>24 小时后提醒</button><button id="updateSkipBtn" type="button" hidden>跳过此版本</button></div><div class="edit-dialog-actions"><button id="updateManualBtn" type="button">手动下载</button><button id="updateCheckBtn" type="button">检查更新</button><button id="updateInstallBtn" type="button" hidden>下载并安装</button><button id="updateCloseBtn" type="button">关闭</button></div>
     </div>
   </div>
   <script src="updater.js"></script>

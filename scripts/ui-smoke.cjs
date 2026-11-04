@@ -218,6 +218,47 @@ const path = require('node:path');
     await musicPage.waitForFunction(()=>document.querySelector('#musicStatus').textContent.includes('200 MB'));
     await musicContext.close();
     console.log('PASS: music import, real WAV playback, selection/rename/repeat persistence, duplicate feedback, remove confirmation, import error');
+    const reminderContext=await browser.newContext({viewport:{width:1000,height:700}});
+    await reminderContext.addInitScript(()=>{
+      window.__autoEvents={};window.__checkCount=0;window.__downloadCount=0;
+      window.__TAURI__={core:{invoke:async(command,args)=>{
+        if(command==='app_version')return '5.3.0';if(command==='load_api_key')return '';
+        if(command==='music_list')return {tracks:[]};
+        if(command==='set_update_badge'){window.__badge=args.version;return;}
+        if(command==='check_for_update'){window.__checkCount+=1;return {version:'5.4.0',currentVersion:'5.3.0',notes:'合成测试版本，用于验证自动提醒。'};}
+        if(command==='download_update')window.__downloadCount+=1;
+      }},event:{listen:async(name,callback)=>{window.__autoEvents[name]=callback;}}};
+    });
+    const reminderPage=await reminderContext.newPage();reminderPage.on('pageerror',error=>errors.push(String(error)));
+    await reminderPage.clock.install({time:new Date('2026-11-04T10:00:00+08:00')});
+    await reminderPage.goto(`http://127.0.0.1:${server.address().port}`);
+    await reminderPage.waitForFunction(()=>document.querySelector('#updateCurrentVersion').textContent.includes('5.3.0'));
+    await reminderPage.clock.fastForward(8100);
+    await reminderPage.waitForSelector('#updateBanner:visible');
+    assert.equal(await reminderPage.locator('#updateDialog').isVisible(),false);
+    assert.equal(await reminderPage.evaluate(()=>window.__badge),'5.4.0');
+    await reminderPage.screenshot({path:path.join(output,'auto-update-banner.png')});
+    await reminderPage.locator('#updateBannerLaterBtn').click();assert.equal(await reminderPage.locator('#updateBanner').isVisible(),false);
+    await reminderPage.clock.fastForward(24*60*60*1000);
+    await reminderPage.evaluate(()=>window.__autoEvents['updater:tick']({}));
+    await reminderPage.waitForSelector('#updateBanner:visible');
+    await reminderPage.locator('#updateBannerSkipBtn').click();assert.equal(await reminderPage.locator('#updateBanner').isVisible(),false);
+    await reminderPage.reload();await reminderPage.waitForFunction(()=>document.querySelector('#updateCurrentVersion').textContent.includes('5.3.0'));
+    await reminderPage.clock.fastForward(8100);assert.equal(await reminderPage.locator('#updateBanner').isVisible(),false);
+    await reminderPage.locator('#settingsBtn').click();await reminderPage.locator('#settingsCheckUpdateBtn').click();
+    await reminderPage.waitForFunction(()=>document.querySelector('#updateStatus').textContent.includes('5.4.0'));
+    assert.equal(await reminderPage.locator('#updateInstallBtn').isVisible(),true);
+    await reminderPage.locator('#updateCloseBtn').click();await reminderPage.locator('#updateRestoreBtn').click();
+    assert.equal(await reminderPage.locator('#updateBanner').isVisible(),true);
+    await reminderPage.locator('#updateAutoEnabled').uncheck();await reminderPage.locator('#settingsCloseBtn').click();
+    const checks=await reminderPage.evaluate(()=>window.__checkCount);
+    await reminderPage.clock.fastForward(48*60*60*1000);await reminderPage.evaluate(()=>window.__autoEvents['updater:tick']({}));
+    assert.equal(await reminderPage.evaluate(()=>window.__checkCount),checks);assert.equal(await reminderPage.evaluate(()=>window.__downloadCount),0);
+    await reminderPage.reload();await reminderPage.waitForFunction(()=>document.querySelector('#updateCurrentVersion').textContent.includes('5.3.0'));
+    await reminderPage.clock.fastForward(8100);assert.equal(await reminderPage.locator('#updateAutoEnabled').isChecked(),false);
+    assert.equal(await reminderPage.evaluate(()=>window.__checkCount),0);
+    await reminderContext.close();
+    console.log('PASS: automatic reminder, native badge request, 24-hour snooze, persistent skip/restore/opt-out, manual override, no automatic download');
     assert.deepEqual(errors,[]);
     console.log(`UI smoke tests passed. Screenshots: ${output}`);
   } finally {
