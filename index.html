@@ -104,6 +104,7 @@
         <button id="settingsCloseBtn" class="settings-close" type="button" aria-label="关闭" title="关闭">×</button>
       </div>
       <div class="settings-body">
+        <div class="settings-row"><span class="settings-label" data-i18n="music.title">本地音乐库</span><button id="settingsMusicBtn" type="button" data-i18n="music.manage">管理曲目</button></div>
         <div class="settings-row"><span class="settings-label" data-i18n="updates.title">软件更新</span><button id="settingsCheckUpdateBtn" type="button" data-i18n="updates.check">检查更新</button></div>
         <div class="settings-row">
           <span class="settings-label" data-i18n="settings.language">语言</span>
@@ -208,7 +209,7 @@
     </div>
   </div>
 
-  <audio id="bgmPlayer" preload="auto" loop></audio>
+  <audio id="bgmPlayer" preload="metadata" loop></audio>
   <div id="bgmFloating" class="bgm-floating">
     <button id="bgmToggle" class="bgm-btn" title="播放/暂停" aria-label="播放或暂停背景音乐">▶︎</button>
     <div class="bgm-info">
@@ -220,11 +221,16 @@
       <button id="bgmMute" class="bgm-btn" title="静音" aria-label="静音背景音乐">🔇</button>
       <input id="bgmVolume" type="range" min="0" max="1" step="0.01" value="0.5" aria-label="背景音乐音量">
     </div>
-    <label class="bgm-add" aria-label="添加背景音乐" title="添加背景音乐">
-      ＋
-      <input id="bgmFileInput" type="file" accept="audio/*" style="display:none">
-    </label>
+    <button id="musicOpenBtn" type="button" class="bgm-btn bgm-add" aria-label="音乐库" title="音乐库">＋</button>
   </div>
+
+  <div id="musicDialog" class="edit-dialog music-dialog" role="dialog" aria-modal="true" aria-labelledby="musicTitle"><div class="edit-dialog-content">
+    <div class="records-header"><h2 id="musicTitle">本地音乐库</h2><button id="musicCloseBtn" type="button">关闭</button></div>
+    <p id="musicHint" class="settings-hint"></p><p id="musicFormats" class="settings-hint"></p>
+    <div class="music-toolbar"><button id="musicImportBtn" type="button">导入音乐</button><button id="musicFolderBtn" type="button">在 Finder 中显示</button><button id="musicReloadBtn" type="button">重新读取</button></div>
+    <label class="music-repeat"><span id="musicRepeatLabel">播放模式</span><select id="musicRepeatMode"><option id="musicRepeatSingle" value="single">单曲循环</option><option id="musicRepeatList" value="list">列表循环</option></select></label>
+    <p id="musicStatus" class="filter-summary" role="status" aria-live="polite"></p><div id="musicTracks"></div>
+  </div></div>
 
   <div id="updateDialog" class="edit-dialog update-dialog" role="dialog" aria-modal="true" aria-labelledby="updateTitle">
     <div class="edit-dialog-content">
@@ -236,6 +242,7 @@
     </div>
   </div>
   <script src="updater.js"></script>
+  <script src="music-library.js"></script>
   <script src="main.js"></script>
 </body>
 </html>

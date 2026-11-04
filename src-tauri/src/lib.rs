@@ -3,6 +3,7 @@ use tauri::{
     menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder},
     Emitter,
 };
+mod music;
 mod tray;
 mod updates;
 
@@ -71,7 +72,9 @@ fn app_version(app: tauri::AppHandle) -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .manage(updates::UpdateState::default())
+        .manage(music::MusicState::default())
         .invoke_handler(tauri::generate_handler![
             load_api_key,
             save_api_key,
@@ -82,7 +85,12 @@ pub fn run() {
             updates::download_update,
             updates::install_update,
             updates::restart_after_update,
-            updates::open_release_page
+            updates::open_release_page,
+            music::music_list,
+            music::music_import,
+            music::music_rename,
+            music::music_remove,
+            music::music_open_folder
         ])
         .on_window_event(|window, event| {
             if window.label() == "main" {

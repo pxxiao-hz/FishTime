@@ -9,7 +9,7 @@ const STORAGE_KEY_MODULES = "fishtime-modules";
 const STORAGE_KEY_BGM = "fishtime-bgm";
 const DEFAULT_WORKSPACE = "default";
 const DEFAULT_LANG = "zh";
-const APP_VERSION_FALLBACK = "5.1.0";
+const APP_VERSION_FALLBACK = "5.2.0";
 let trayReady = false;
 let trayRevision = Date.now();
 
@@ -228,52 +228,52 @@ function saveModulePrefs() {
 }
 
 function loadBgmSettings() {
-  const defaultSources = defaultBgmSettings().sources;
-  const builtInUrls = new Set(defaultSources.map(source => source.url));
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_BGM);
-    const obj = raw ? JSON.parse(raw) : null;
-    if (obj && typeof obj === "object") {
-      bgmSettings = { ...defaultBgmSettings(), ...obj };
-    } else {
-      bgmSettings = defaultBgmSettings();
-    }
-  } catch {
-    bgmSettings = defaultBgmSettings();
-  }
-  // 保证有至少一首
-  if (!Array.isArray(bgmSettings.sources) || !bgmSettings.sources.length) {
-    bgmSettings.sources = defaultSources;
-  } else {
-    // blob URL 仅在当前进程有效；同时清理旧版本中已失效的内置空音轨。
-    bgmSettings.sources = bgmSettings.sources.filter(source =>
-      source && source.builtIn && builtInUrls.has(source.url)
-    );
-    if (!bgmSettings.sources.length) bgmSettings.sources = defaultSources;
-  }
-  if (bgmSettings.index >= bgmSettings.sources.length) {
-    bgmSettings.index = 0;
-  }
-  bgmSources = bgmSettings.sources;
+  const custom = bgmSources.filter(source => !source.builtIn);
+  try { const raw=JSON.parse(localStorage.getItem(STORAGE_KEY_BGM)||"null"); bgmSettings={...defaultBgmSettings(),...(raw||{})}; }
+  catch { bgmSettings=defaultBgmSettings(); }
+  bgmSettings.volume=Number.isFinite(Number(bgmSettings.volume))?Math.max(0,Math.min(1,Number(bgmSettings.volume))):0.5;
+  bgmSettings.muted=!!bgmSettings.muted;
+  bgmSettings.repeatMode=bgmSettings.repeatMode === "list" ? "list" : "single";
+  bgmSettings.sources=defaultBgmSettings().sources;
+  bgmSources=[...bgmSettings.sources,...custom];
+  bgmSettings.index=Number.isFinite(Number(bgmSettings.index))?Math.max(0,Math.min(bgmSources.length-1,Math.floor(Number(bgmSettings.index)))):0;
 }
 
 function saveBgmSettings() {
   if (!bgmSettings) return;
-  const persisted = {
-    ...bgmSettings,
-    sources: bgmSources.filter(source => source && source.builtIn)
-  };
-  localStorage.setItem(STORAGE_KEY_BGM, JSON.stringify(persisted));
+  // Only portable preferences go into localStorage/JSON backups, never audio or paths.
+  localStorage.setItem(STORAGE_KEY_BGM,JSON.stringify({...bgmSettings,sources:defaultBgmSettings().sources}));
 }
 
-function setBgmSource(index) {
+function setBgmSource(index, persist=true, play=!!(bgmAudio && !bgmAudio.paused)) {
   if (!bgmAudio || !bgmSources.length) return;
-  bgmState.index = (index + bgmSources.length) % bgmSources.length;
-  bgmSettings.index = bgmState.index;
-  const src = bgmSources[bgmState.index];
-  bgmAudio.src = src.url;
+  const next=(index+bgmSources.length)%bgmSources.length;
+  const source=bgmSources[next];
+  if (!source || source.available === false) { window.FishTimeMusic?.playbackError(); return; }
+  bgmState.index=next;bgmSettings.index=next;
+  if (persist) bgmSettings.selectedId=source.id;
+  if (bgmAudio.getAttribute("src") !== source.url) bgmAudio.src=source.url;
+  if (persist) saveBgmSettings();
+  if (play) bgmAudio.play().catch(()=>window.FishTimeMusic?.playbackError());
   updateBgmUI();
-  saveBgmSettings();
+}
+
+function nextBgmIndex(direction) {
+  for(let step=1;step<=bgmSources.length;step+=1) {
+    const index=(bgmState.index+step*direction+bgmSources.length)%bgmSources.length;
+    if(bgmSources[index].available !== false) return index;
+  }
+  return 0;
+}
+
+function applyMusicLibrary(tracks, selectId=null, removedId=null) {
+  const selected=selectId || bgmSettings.selectedId || bgmSources[bgmState.index]?.id;
+  const wasPlaying=!!(bgmAudio && !bgmAudio.paused);
+  const convert=window.__TAURI__?.core?.convertFileSrc;
+  bgmSources=[...defaultBgmSettings().sources,...tracks.map(track=>({...track,builtIn:false,url:track.path && convert?convert(track.path):"",available:!!track.available && !!convert}))];
+  let index=bgmSources.findIndex(track=>track.id===selected && track.available!==false);
+  if(index<0) index=0;
+  setBgmSource(index,true,wasPlaying && removedId!==selected);
 }
 
 function updateBgmUI() {
@@ -281,7 +281,9 @@ function updateBgmUI() {
   const toggleBtn = document.getElementById("bgmToggle");
   const muteBtn = document.getElementById("bgmMute");
   if (titleEl && bgmSources.length) {
-    titleEl.textContent = bgmSources[bgmState.index]?.name || "BGM";
+    const source=bgmSources[bgmState.index];
+    titleEl.textContent = source?.builtIn ? t("music.builtinTrack") : source?.name || "BGM";
+    titleEl.title=titleEl.textContent;
   }
   if (toggleBtn) {
     toggleBtn.textContent = bgmState.playing ? "❚❚" : "▶︎";
@@ -293,6 +295,7 @@ function updateBgmUI() {
   if (volumeInput && bgmSettings) {
     volumeInput.value = bgmSettings.volume;
   }
+  window.FishTimeMusic?.refresh();
 }
 
 function updateWorkspaceUI() {
@@ -632,6 +635,8 @@ const I18N = {
   }
 };
 Object.assign(I18N.zh, {
+  "music.title":"本地音乐库", "music.manage":"管理曲目", "music.builtinTrack":"内置曲目 1",
+  "backup.clear":"清空当前分区记录",
   "updates.check":"检查更新", "updates.title":"软件更新",
   "app.title": "FishTime", "nav.home": "今天", "nav.records": "记录", "nav.stats": "统计",
   "action.start": "开始计时", "action.pause": "暂停", "action.stop": "结束并保存", "ui.resume": "继续计时",
@@ -649,6 +654,8 @@ Object.assign(I18N.zh, {
   "records.monthTag": "本月标签汇总（当前月份）", "quote.label": "今日一句", "chart.tagDistribution": "标签用时分布", "chart.noTagData": "还没有标签用时数据"
 });
 Object.assign(I18N.en, {
+  "music.title":"Local music library", "music.manage":"Manage tracks", "music.builtinTrack":"Built-in track 1",
+  "backup.clear":"Clear workspace records",
   "updates.check":"Check for updates", "updates.title":"Software update",
   "app.title": "FishTime", "nav.home": "Today", "nav.records": "Records", "nav.stats": "Insights",
   "action.start": "Start timer", "action.pause": "Pause", "action.stop": "Finish & save", "ui.resume": "Resume",
@@ -705,8 +712,10 @@ function defaultBgmSettings() {
     volume: 0.5,
     muted: false,
     index: 0,
+    repeatMode: "single",
+    selectedId: "builtin-1",
     sources: [
-      { name: "内置曲目 1", url: "assets/bgm/track1.mp3", builtIn: true }
+      { id: "builtin-1", name: "内置曲目 1", url: "assets/bgm/track1.mp3", builtIn: true, available: true }
     ]
   };
 }
@@ -1291,6 +1300,8 @@ function applyLocale(lang) {
   setRandomQuote();
   updateSettingsOptions();
   updateNavigation();
+  window.FishTimeMusic?.refresh();
+  updateBgmUI();
 }
 
 function setPage(page) {
@@ -3735,13 +3746,14 @@ window.addEventListener("DOMContentLoaded", () => {
   const bgmNext = document.getElementById("bgmNext");
   const bgmMuteBtn = document.getElementById("bgmMute");
   const bgmVolume = document.getElementById("bgmVolume");
-  const bgmFileInput = document.getElementById("bgmFileInput");
+
 
   if (bgmAudio) {
     bgmAudio.volume = bgmSettings.volume ?? 0.5;
     bgmAudio.muted = !!bgmSettings.muted;
     bgmState.index = bgmSettings.index || 0;
-    setBgmSource(bgmState.index);
+    bgmAudio.loop=bgmSettings.repeatMode !== "list";
+    setBgmSource(bgmState.index,false,false);
     bgmAudio.addEventListener("play", () => {
       bgmState.playing = true;
       updateBgmUI();
@@ -3751,8 +3763,7 @@ window.addEventListener("DOMContentLoaded", () => {
       updateBgmUI();
     });
     bgmAudio.addEventListener("ended", () => {
-      setBgmSource(bgmState.index + 1);
-      bgmAudio.play().catch(() => {});
+      if(bgmSettings.repeatMode === "list") setBgmSource(nextBgmIndex(1),true,true);
     });
   }
 
@@ -3760,7 +3771,7 @@ window.addEventListener("DOMContentLoaded", () => {
     bgmToggle.addEventListener("click", () => {
       if (!bgmAudio) return;
       if (bgmAudio.paused) {
-        bgmAudio.play().catch(() => {});
+        bgmAudio.play().catch(() => window.FishTimeMusic?.playbackError());
       } else {
         bgmAudio.pause();
       }
@@ -3769,15 +3780,13 @@ window.addEventListener("DOMContentLoaded", () => {
 
   if (bgmPrev) {
     bgmPrev.addEventListener("click", () => {
-      setBgmSource(bgmState.index - 1);
-      if (bgmState.playing) bgmAudio.play().catch(() => {});
+      setBgmSource(nextBgmIndex(-1));
     });
   }
 
   if (bgmNext) {
     bgmNext.addEventListener("click", () => {
-      setBgmSource(bgmState.index + 1);
-      if (bgmState.playing) bgmAudio.play().catch(() => {});
+      setBgmSource(nextBgmIndex(1));
     });
   }
 
@@ -3801,18 +3810,16 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  if (bgmFileInput) {
-    bgmFileInput.addEventListener("change", () => {
-      const file = bgmFileInput.files && bgmFileInput.files[0];
-      if (!file) return;
-      const url = URL.createObjectURL(file);
-      const name = file.name || "自定义曲目";
-      bgmSources.push({ name, url, builtIn: false });
-      setBgmSource(bgmSources.length - 1);
-      saveBgmSettings();
-      bgmFileInput.value = "";
-    });
-  }
+  bgmAudio?.addEventListener("error",()=>{bgmState.playing=false;updateBgmUI();window.FishTimeMusic?.playbackError();});
+  window.FishTimeMusic?.init({
+    language:()=>currentLang, invoke:tauriInvoke,
+    tracks:()=>bgmSources.map(track=>track.builtIn?{...track,name:t("music.builtinTrack")}:track),
+    selected:()=>bgmSources[bgmState.index]?.id,
+    playing:()=>!!bgmAudio && !bgmAudio.paused,
+    select:id=>{const index=bgmSources.findIndex(track=>track.id===id);if(index>=0)setBgmSource(index,true,true);},
+    apply:applyMusicLibrary,repeat:()=>bgmSettings.repeatMode,
+    setRepeat:mode=>{bgmSettings.repeatMode=mode==="list"?"list":"single";if(bgmAudio)bgmAudio.loop=bgmSettings.repeatMode==="single";saveBgmSettings();window.FishTimeMusic?.refresh();}
+  });
 
   langOptionButtons.forEach(btn => {
     btn.addEventListener("click", () => {

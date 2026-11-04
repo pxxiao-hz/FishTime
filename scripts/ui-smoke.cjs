@@ -10,9 +10,11 @@ const path = require('node:path');
 (async () => {
   const root = path.resolve(__dirname, '..');
   const output = process.env.FISHTIME_SCREENSHOT_DIR || fs.mkdtempSync(path.join(os.tmpdir(), 'fishtime-ui-'));
-  const allowed = new Set(['index.html', 'main.js', 'updater.js', 'style.css', 'assets/bgm/track1.mp3']);
+  const allowed = new Set(['index.html', 'main.js', 'updater.js', 'music-library.js', 'style.css', 'assets/bgm/track1.mp3']);
+  const wave=Buffer.alloc(44+22050*10*2);wave.write('RIFF');wave.writeUInt32LE(wave.length-8,4);wave.write('WAVEfmt ',8);wave.writeUInt32LE(16,16);wave.writeUInt16LE(1,20);wave.writeUInt16LE(1,22);wave.writeUInt32LE(22050,24);wave.writeUInt32LE(44100,28);wave.writeUInt16LE(2,32);wave.writeUInt16LE(16,34);wave.write('data',36);wave.writeUInt32LE(wave.length-44,40);
   const server = http.createServer((request, response) => {
     const file = request.url.split('?')[0].slice(1) || 'index.html';
+    if(file==='test-tone.wav'){response.setHeader('Content-Type','audio/wav');response.end(wave);return;}
     if (!allowed.has(file)) { response.writeHead(404); response.end(); return; }
     response.setHeader('Content-Type', file.endsWith('.js') ? 'text/javascript' : file.endsWith('.css') ? 'text/css' : file.endsWith('.mp3') ? 'audio/mpeg' : 'text/html');
     response.end(fs.readFileSync(path.join(root, file)));
@@ -167,6 +169,55 @@ const path = require('node:path');
     assert.equal(await updatePage.locator('body').getAttribute('data-timer-state'),'paused');
     await updateContext.close();
     console.log('PASS: update entry points, native update flow simulation, install error, paused session and draft recovery');
+    const musicContext=await browser.newContext({viewport:{width:720,height:560}});
+    await musicContext.addInitScript(()=>{
+      window.__TAURI__={core:{convertFileSrc:()=>location.origin+'/test-tone.wav',invoke:async(command,args)=>{
+        if(command==='app_version')return '5.2.0';if(command==='load_api_key')return '';
+        let tracks=JSON.parse(localStorage.getItem('test-music-library')||'[]');let added=0,duplicates=0,last_id=null;
+        if(command==='music_import'){
+          if(window.__musicError)throw window.__musicError;
+          const id='track-'+'a'.repeat(64);if(tracks.length)duplicates=1;else {tracks.push({id,name:'测试曲目',bytes:441044,path:'/test/music/track.wav',available:true});added=1;}last_id=id;
+        }
+        if(command==='music_rename')tracks.find(track=>track.id===args.id).name=args.name;
+        if(command==='music_remove')tracks=tracks.filter(track=>track.id!==args.id);
+        if(command.startsWith('music_')){localStorage.setItem('test-music-library',JSON.stringify(tracks));return {tracks,added,duplicates,last_id,errors:[]};}
+      }},event:{listen:async()=>{}}};
+    });
+    const musicPage=await musicContext.newPage();musicPage.on('pageerror',error=>errors.push(String(error)));
+    await musicPage.goto(`http://127.0.0.1:${server.address().port}`);
+    await musicPage.locator('#musicOpenBtn').click();await musicPage.locator('#musicImportBtn').click();
+    await musicPage.waitForSelector('.music-row[data-id^="track-"]');
+    await musicPage.locator('.music-row[data-id^="track-"] .music-select').click();
+    await musicPage.waitForFunction(()=>!document.querySelector('#bgmPlayer').paused&&document.querySelector('#bgmPlayer').readyState>=2);
+    await musicPage.reload();await musicPage.locator('#musicOpenBtn').click();
+    await musicPage.waitForSelector('.music-row.selected[data-id^="track-"]');
+    assert.equal(await musicPage.locator('#bgmPlayer').evaluate(audio=>audio.paused),true);
+    await musicPage.locator('.music-row[data-id^="track-"] button', {hasText:'重命名'}).click();
+    await musicPage.locator('.music-name-input').fill('我的专注音乐');
+    await musicPage.locator('.music-actions button',{hasText:'保存'}).click();
+    await musicPage.waitForFunction(()=>document.querySelector('.music-row[data-id^="track-"] .music-select').textContent==='我的专注音乐');
+    await musicPage.locator('#musicImportBtn').click();
+    await musicPage.waitForFunction(()=>document.querySelector('#musicStatus').textContent.includes('重复'));
+    assert.equal(await musicPage.locator('.music-row[data-id^="track-"]').count(),1);
+    await musicPage.locator('#musicRepeatMode').selectOption('list');
+    assert.equal(await musicPage.locator('#bgmPlayer').evaluate(audio=>audio.loop),false);
+    await musicPage.screenshot({path:path.join(output,'music-library.png')});
+    await musicPage.reload();await musicPage.locator('#musicOpenBtn').click();
+    await musicPage.waitForSelector('.music-row.selected[data-id^="track-"]');
+    assert.equal(await musicPage.locator('#musicRepeatMode').inputValue(),'list');
+    await musicPage.locator('#bgmPlayer').evaluate(audio=>audio.dispatchEvent(new Event('ended')));
+    await musicPage.waitForSelector('.music-row.selected[data-id="builtin-1"]');
+    await musicPage.locator('.music-row[data-id^="track-"] button',{hasText:'移除',exact:true}).click();
+    await musicPage.locator('.music-actions button',{hasText:'取消'}).click();
+    assert.equal(await musicPage.locator('.music-row[data-id^="track-"]').count(),1);
+    await musicPage.locator('.music-row[data-id^="track-"] button',{hasText:'移除',exact:true}).click();
+    await musicPage.locator('.music-actions button',{hasText:'确认移除副本'}).click();
+    await musicPage.waitForFunction(()=>!document.querySelector('.music-row[data-id^="track-"]'));
+    assert.equal(await musicPage.evaluate(()=>localStorage.getItem('fishtime-bgm').includes('/test/music')),false);
+    await musicPage.evaluate(()=>{window.__musicError='invalid_size';});await musicPage.locator('#musicImportBtn').click();
+    await musicPage.waitForFunction(()=>document.querySelector('#musicStatus').textContent.includes('200 MB'));
+    await musicContext.close();
+    console.log('PASS: music import, real WAV playback, selection/rename/repeat persistence, duplicate feedback, remove confirmation, import error');
     assert.deepEqual(errors,[]);
     console.log(`UI smoke tests passed. Screenshots: ${output}`);
   } finally {
