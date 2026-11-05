@@ -9,7 +9,7 @@ const STORAGE_KEY_MODULES = "fishtime-modules";
 const STORAGE_KEY_BGM = "fishtime-bgm";
 const DEFAULT_WORKSPACE = "default";
 const DEFAULT_LANG = "zh";
-const APP_VERSION_FALLBACK = "5.3.1";
+const APP_VERSION_FALLBACK = "5.4.0";
 let trayReady = false;
 let trayRevision = Date.now();
 
@@ -289,7 +289,10 @@ function updateBgmUI() {
     toggleBtn.textContent = bgmState.playing ? "❚❚" : "▶︎";
   }
   if (muteBtn) {
-    muteBtn.textContent = bgmSettings?.muted ? "🔇" : "🔊";
+    const speaker='<path d="M11 5 6 9H3v6h3l5 4V5Z"/>';
+    muteBtn.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+speaker+(bgmSettings?.muted?'<path d="m16 9 5 6m0-6-5 6"/>':'<path d="M15 8c2 2 2 6 0 8m3-11c4 4 4 10 0 14"/>')+'</svg>';
+    muteBtn.title=currentLang==='en'?(bgmSettings?.muted?'Unmute':'Mute'):(bgmSettings?.muted?'取消静音':'静音');
+    muteBtn.setAttribute('aria-label',muteBtn.title);
   }
   const volumeInput = document.getElementById("bgmVolume");
   if (volumeInput && bgmSettings) {
@@ -641,12 +644,12 @@ Object.assign(I18N.zh, {
   "app.title": "FishTime", "nav.home": "今天", "nav.records": "记录", "nav.stats": "统计",
   "action.start": "开始计时", "action.pause": "暂停", "action.stop": "结束并保存", "ui.resume": "继续计时",
   "label.tag": "标签", "table.tag": "标签", "label.note": "备注", "summary.today": "今日累计", "summary.monthToDate": "本月累计",
-  "placeholder.tag": "例如：阅读、开发", "placeholder.note": "这段时间想做什么？", "records.today": "今天的记录",
-  "status.idle": "准备好开始了吗", "mode.default": "浅色", "mode.dark": "深色", "mode.system": "跟随系统",
-  "ui.local": "数据仅存于本机", "ui.timerHint": "给正在做的事，一段专注的时间。", "ui.sessions": "今日完成",
-  "ui.viewAll": "查看全部", "ui.list": "列表", "ui.calendar": "日历", "ui.recordsHint": "回顾每一段投入的时间",
+  "placeholder.tag": "选择或输入标签", "placeholder.note": "可选备注", "records.today": "今天的记录",
+  "status.idle": "未开始计时", "mode.default": "浅色", "mode.dark": "深色", "mode.system": "跟随系统", "mode.color":"暖色",
+  "ui.local": "本地存储", "ui.timerHint": "给正在做的事，一段专注的时间。", "ui.sessions": "今日完成",
+  "ui.viewAll": "查看全部", "ui.list": "列表", "ui.calendar": "日历", "ui.recordsHint": "按日期、标签或备注筛选",
   "ui.search": "搜索标签或备注", "ui.reset": "重置", "ui.timeRange": "时间段", "ui.loadMore": "显示更多",
-  "ui.overview": "投入概览", "ui.dailyAverage": "日均投入", "ui.activeDays": "活跃天数", "ui.dailyDetails": "所选月份每日明细",
+  "ui.overview": "时长统计", "ui.dailyAverage": "日均投入", "ui.activeDays": "活跃天数", "ui.dailyDetails": "所选月份每日明细",
   "ui.allTags": "所有标签", "ui.noRecords": "这里还没有记录", "ui.emptyHint": "开始一次计时，或调整筛选条件。",
   "ui.recordCount": "{count} 条记录 · 累计 {duration}", "ui.more": "更多操作", "ui.days": "{count} 天",
   "ui.monthAverage": "按所选月份已过的日历天数计算，包含零记录日期。", "ui.currentMonth": "当前月份",
@@ -660,12 +663,12 @@ Object.assign(I18N.en, {
   "app.title": "FishTime", "nav.home": "Today", "nav.records": "Records", "nav.stats": "Insights",
   "action.start": "Start timer", "action.pause": "Pause", "action.stop": "Finish & save", "ui.resume": "Resume",
   "label.tag": "Tag", "label.note": "Note", "summary.today": "Today", "summary.monthToDate": "This month",
-  "placeholder.tag": "Reading, building…", "placeholder.note": "What are you working on?", "records.today": "Today's records",
-  "status.idle": "Ready when you are", "mode.default": "Light", "mode.dark": "Dark", "mode.system": "System",
-  "ui.local": "Stored on your Mac", "ui.timerHint": "Make a little room for focused work.", "ui.sessions": "Sessions today",
-  "ui.viewAll": "View all", "ui.list": "List", "ui.calendar": "Calendar", "ui.recordsHint": "A little perspective on your time",
+  "placeholder.tag": "Choose or enter a tag", "placeholder.note": "Optional note", "records.today": "Today's records",
+  "status.idle": "Not running", "mode.default": "Light", "mode.dark": "Dark", "mode.system": "System", "mode.color":"Warm",
+  "ui.local": "Local storage", "ui.timerHint": "Make a little room for focused work.", "ui.sessions": "Sessions today",
+  "ui.viewAll": "View all", "ui.list": "List", "ui.calendar": "Calendar", "ui.recordsHint": "Filter by date, tag or note",
   "ui.search": "Search tags or notes", "ui.reset": "Reset", "ui.timeRange": "Time", "ui.loadMore": "Show more",
-  "ui.overview": "Time well spent", "ui.dailyAverage": "Daily average", "ui.activeDays": "Active days", "ui.dailyDetails": "Daily breakdown for selected month",
+  "ui.overview": "Time summary", "ui.dailyAverage": "Daily average", "ui.activeDays": "Active days", "ui.dailyDetails": "Daily breakdown for selected month",
   "ui.allTags": "All tags", "ui.noRecords": "No records here yet", "ui.emptyHint": "Start a timer, or try a different filter.",
   "ui.recordCount": "{count} records · {duration} total", "ui.more": "More actions", "ui.days": "{count} days",
   "ui.monthAverage": "Average per elapsed calendar day in the selected month, including days with no records.", "ui.currentMonth": "Current month",
@@ -1132,7 +1135,7 @@ function limitTagDisplay(label) {
 }
 
 function getTagColor(label) {
-  const palette = ["#51947a", "#698aaf", "#b68b58", "#9a7ca6", "#6c9ba0", "#b87973", "#8b9760", "#ad8d9b"];
+  const palette = ["#607d9b", "#858b95", "#ad8d63", "#7b86a7", "#72959a", "#a77e7e", "#8a947a", "#9a8297"];
   let hash = 0;
   for (const ch of label) {
     hash = (hash * 31 + ch.codePointAt(0)) >>> 0;
@@ -1323,8 +1326,6 @@ function updateNavigation() {
   });
   const title = document.getElementById("pageTitle");
   if (title) title.textContent = t("nav." + currentPage);
-  const eyebrow = document.getElementById("pageEyebrow");
-  if (eyebrow) eyebrow.textContent = {home:"MAKE ROOM FOR FOCUS",records:"A RECORD OF YOUR DAYS",stats:"TIME, IN PERSPECTIVE"}[currentPage];
 }
 
 function applyModuleVisibility() {
@@ -1852,7 +1853,7 @@ function renderMonthChart(days, dailyMap) {
     const x = padding.left + step * index + (step - barWidth) / 2;
     const y = padding.top + innerHeight - barHeight;
 
-    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--header-accent").trim() || "#176b57";
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--header-accent").trim() || "#1769d2";
     ctx.fillRect(x, y, barWidth, barHeight);
 
     // X 轴日期标签（显示日）
@@ -2093,7 +2094,7 @@ function renderCalendarView() {
   function colorFor(v) {
     if (!v) return getChartColors().background;
     const ratio = Math.min(1, v / maxValue);
-    const palette = document.body.classList.contains("mode-dark") ? ["#26392f","#2b4437","#315241","#345d48","#37664f"] : ["#e3eee7","#cce0d4","#b7d5c2","#a1c7af","#8bb99e"];
+    const palette = document.body.classList.contains("mode-dark") ? ["#2b3038","#333c49","#3d495b","#46576d","#536986"] : ["#eef2f7","#e0e8f1","#cddae9","#b9cbdf","#a5bbd4"];
     const idx = Math.min(palette.length - 1, Math.floor(ratio * palette.length));
     return palette[idx];
   }
@@ -2889,7 +2890,7 @@ function renderForecast() {
     ctx.stroke();
   }
 
-  ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue("--header-accent").trim() || "#176b57";
+  ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue("--header-accent").trim() || "#1769d2";
   ctx.lineWidth = 2;
   ctx.setLineDash([]);
   drawSmoothLine(0, todayIndex);
@@ -2902,7 +2903,7 @@ function renderForecast() {
 
   const todayPoint = points[todayIndex];
   if (todayPoint) {
-    ctx.fillStyle = "#ff7043";
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--header-accent").trim() || "#1769d2";
     ctx.beginPath();
     ctx.arc(todayPoint.x, todayPoint.y, 3, 0, Math.PI * 2);
     ctx.fill();

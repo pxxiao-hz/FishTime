@@ -2,7 +2,7 @@ const {test}=require('node:test');const assert=require('node:assert/strict');con
 function app(preferences={}){
   const storage=new Map([['fishtime-bgm',JSON.stringify(preferences)]]);let src='';
   const audio={paused:true,loop:true,getAttribute:()=>src,get src(){return src;},set src(value){src=value;this.paused=true;},play(){this.paused=false;return Promise.resolve();}};
-  const nodes=new Map();const element=id=>{if(!nodes.has(id))nodes.set(id,{textContent:'',dataset:{},style:{}});return nodes.get(id);};
+  const nodes=new Map();const element=id=>{if(!nodes.has(id))nodes.set(id,{textContent:'',dataset:{},style:{},setAttribute(name,value){this[name]=value;}});return nodes.get(id);};
   const context=vm.createContext({console,window:{addEventListener(){},__TAURI__:{core:{convertFileSrc:p=>'asset://localhost/'+p}},FishTimeMusic:{refresh(){}}},document:{getElementById:element},localStorage:{getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)}});
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../main.js'),'utf8'),context);context.testAudio=audio;
   vm.runInContext('loadBgmSettings();bgmAudio=testAudio;setBgmSource(0,false,false);',context);
