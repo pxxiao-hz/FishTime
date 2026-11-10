@@ -42,6 +42,8 @@ window.FishTimeRestReminder=(()=>{
     $('restReminderFinish').addEventListener('click',()=>{const active=matching();close();if(active)options.finish();sync();});
     document.addEventListener('keydown',event=>{if(event.key==='Escape'&&token&&!window.FishTimeUpdater?.installing)defer();});
     window.__TAURI__?.event?.listen('timer:rest-reminder',event=>show(event.payload)).catch(()=>{});
+    window.__TAURI__?.event?.listen('timer:rest-dismissed',()=>{if(token)defer();}).catch(()=>{});
+    document.addEventListener('visibilitychange',()=>{if(document.hidden&&token)defer();});
     render();sync();
   }
   return {init,refresh:render,snapshot,restore,get preferences(){return {...preferences};}};

@@ -98,6 +98,7 @@ pub fn run() {
             if window.label() == "main" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
+                    let _ = window.emit("timer:rest-dismissed", ());
                     let _ = window.hide();
                 }
             }
