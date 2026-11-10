@@ -3,7 +3,7 @@ const path = require("path");
 
 const root = path.resolve(__dirname, "..");
 const output = path.join(root, ".tauri-dist");
-const files = ["index.html", "style.css", "main.js", "updater.js", "music-library.js"];
+const files = ["index.html", "style.css", "main.js", "updater.js", "music-library.js", "rest-reminder.js"];
 
 fs.rmSync(output, { recursive: true, force: true });
 fs.mkdirSync(path.join(output, "assets", "bgm"), { recursive: true });

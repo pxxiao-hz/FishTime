@@ -1,5 +1,5 @@
-use chrono::{Local, TimeZone};
-use serde::Deserialize;
+use chrono::{Datelike, Local, NaiveDate, TimeZone};
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Mutex, time::Duration};
 use tauri::{
     menu::{MenuBuilder, MenuItem, MenuItemBuilder},
@@ -23,16 +23,34 @@ pub struct Snapshot {
     state: String,
     intervals: Vec<Interval>,
     daily_totals: HashMap<String, u64>,
+    #[serde(default)]
+    reminder: Reminder,
+}
+
+#[derive(Clone, Default, Deserialize)]
+pub struct Reminder {
+    enabled: bool,
+    after_ms: u64,
+    next_at_ms: Option<i64>,
+    presented: bool,
+}
+#[derive(Clone, Serialize)]
+struct ReminderEvent {
+    workspace: String,
+    started_ms: i64,
 }
 
 pub struct TrayState {
     snapshot: Mutex<Option<Snapshot>>,
-    last_frame: Mutex<Option<(u64, u64, u64)>>,
+    last_frame: Mutex<Option<(u64, u64, u64, String)>>,
+    last_reminder: Mutex<Option<(String, i64, i64, i64)>>,
     update_version: Mutex<Option<String>>,
     status: MenuItem<tauri::Wry>,
     workspace: MenuItem<tauri::Wry>,
     session: MenuItem<tauri::Wry>,
     today: MenuItem<tauri::Wry>,
+    month: MenuItem<tauri::Wry>,
+    forecast: MenuItem<tauri::Wry>,
     start: MenuItem<tauri::Wry>,
     pause: MenuItem<tauri::Wry>,
     stop: MenuItem<tauri::Wry>,
@@ -64,6 +82,72 @@ fn interval_total(intervals: &[Interval], now: i64, lower: i64, upper: i64) -> u
         .sum()
 }
 
+pub fn configure_counter_font(tray: &tauri::tray::TrayIcon) -> tauri::Result<()> {
+    #[cfg(target_os = "macos")]
+    tray.with_inner_tray_icon(|inner| {
+        let mtm = objc2::MainThreadMarker::new().expect("tray callback must run on main thread");
+        if let Some(button) = inner.ns_status_item().and_then(|item| item.button(mtm)) {
+            let size = button
+                .font()
+                .map(|font| font.pointSize())
+                .filter(|size| *size > 0.0)
+                .unwrap_or(13.0);
+            let font = objc2_app_kit::NSFont::monospacedDigitSystemFontOfSize_weight(size, 0.0);
+            button.setFont(Some(&font));
+        }
+    })?;
+    Ok(())
+}
+
+fn month_totals(
+    snapshot: &Snapshot,
+    now: i64,
+    start: i64,
+    end: i64,
+    date: &str,
+    elapsed_days: u32,
+    month_days: u32,
+) -> (u64, Option<u64>) {
+    let prefix = &date[..7];
+    let month = snapshot
+        .daily_totals
+        .iter()
+        .filter(|(day, _)| day.starts_with(prefix))
+        .map(|(_, ms)| *ms)
+        .sum::<u64>()
+        + interval_total(&snapshot.intervals, now, start, end);
+    let to_date = snapshot
+        .daily_totals
+        .iter()
+        .filter(|(day, _)| day.starts_with(prefix) && day.as_str() <= date)
+        .map(|(_, ms)| *ms)
+        .sum::<u64>()
+        + interval_total(&snapshot.intervals, now, start, now);
+    (
+        month,
+        (to_date > 0).then(|| {
+            (to_date as f64 / elapsed_days.max(1) as f64 * month_days as f64).round() as u64
+        }),
+    )
+}
+fn reminder_due(snapshot: &Snapshot, now: i64) -> Option<(i64, i64)> {
+    let settings = &snapshot.reminder;
+    if !settings.enabled
+        || settings.presented
+        || snapshot.state != "running"
+        || !(60_000..=86_400_000).contains(&settings.after_ms)
+    {
+        return None;
+    }
+    let segment = snapshot.intervals.last()?;
+    if segment.end_ms.is_some() {
+        return None;
+    }
+    let due = (segment.start_ms.saturating_add(settings.after_ms as i64))
+        .max(settings.next_at_ms.unwrap_or(0));
+    (now >= due).then_some((segment.start_ms, due))
+}
+
 pub fn show_main(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
@@ -88,6 +172,20 @@ pub fn request_quit(app: &tauri::AppHandle) {
 #[tauri::command]
 pub fn exit_app(app: tauri::AppHandle) {
     app.exit(0);
+}
+
+#[tauri::command]
+pub fn show_reminder_window(app: tauri::AppHandle) {
+    let ready = app
+        .state::<TrayState>()
+        .snapshot
+        .lock()
+        .unwrap()
+        .as_ref()
+        .is_some_and(|snapshot| snapshot.reminder.enabled && snapshot.state == "running");
+    if ready && !crate::updates::installing(&app) {
+        show_main(&app);
+    }
 }
 
 #[tauri::command]
@@ -133,6 +231,7 @@ fn refresh(app: &tauri::AppHandle) {
     let now = Local::now();
     let now_ms = now.timestamp_millis();
     let date = now.date_naive();
+    let date_key = date.to_string();
     // Use local calendar boundaries, including DST, rather than 24-hour division.
     let midnight = Local
         .from_local_datetime(&date.and_hms_opt(0, 0, 0).unwrap())
@@ -146,7 +245,55 @@ fn refresh(app: &tauri::AppHandle) {
         .copied()
         .unwrap_or(0)
         + interval_total(&snapshot.intervals, now_ms, midnight, now_ms);
-    let frame = (snapshot.revision, elapsed / 1000, today / 1000);
+    let start_date = NaiveDate::from_ymd_opt(date.year(), date.month(), 1).unwrap();
+    let next_date = if date.month() == 12 {
+        NaiveDate::from_ymd_opt(date.year() + 1, 1, 1).unwrap()
+    } else {
+        NaiveDate::from_ymd_opt(date.year(), date.month() + 1, 1).unwrap()
+    };
+    let boundary = |date: NaiveDate| {
+        Local
+            .from_local_datetime(&date.and_hms_opt(0, 0, 0).unwrap())
+            .earliest()
+            .map(|time| time.timestamp_millis())
+            .unwrap_or(now_ms)
+    };
+    let (month, forecast) = month_totals(
+        &snapshot,
+        now_ms,
+        boundary(start_date),
+        boundary(next_date),
+        &date_key,
+        date.day(),
+        (next_date - start_date).num_days() as u32,
+    );
+    if !snapshot.reminder.enabled || snapshot.state != "running" {
+        *state.last_reminder.lock().unwrap() = None;
+    }
+    if let Some((started, due)) = reminder_due(&snapshot, now_ms) {
+        let mut last = state.last_reminder.lock().unwrap();
+        let repeat = last.as_ref().is_some_and(|(ws, start, target, sent)| {
+            ws == &snapshot.workspace
+                && *start == started
+                && *target == due
+                && now_ms - *sent < 60_000
+        });
+        if !repeat && !crate::updates::installing(app) {
+            *last = Some((snapshot.workspace.clone(), started, due, now_ms));
+            drop(last);
+            // Wake a hidden WebView before delivering the reminder event.
+            show_main(app);
+            let _ = app.emit_to(
+                "main",
+                "timer:rest-reminder",
+                ReminderEvent {
+                    workspace: snapshot.workspace.clone(),
+                    started_ms: started,
+                },
+            );
+        }
+    }
+    let frame = (snapshot.revision, elapsed / 1000, today / 1000, date_key);
     {
         let mut previous = state.last_frame.lock().unwrap();
         if previous.as_ref() == Some(&frame) {
@@ -206,6 +353,20 @@ fn refresh(app: &tauri::AppHandle) {
         "{}: {}",
         if en { "Today" } else { "今日累计" },
         duration_text(today)
+    ));
+    let _ = state.month.set_text(format!(
+        "{}: {}",
+        if en { "This month" } else { "本月累计" },
+        duration_text(month)
+    ));
+    let _ = state.forecast.set_text(format!(
+        "{}: {}",
+        if en { "Month estimate" } else { "本月预估" },
+        forecast.map(duration_text).unwrap_or_else(|| if en {
+            "No data".into()
+        } else {
+            "暂无数据".into()
+        })
     ));
     let _ = state.start.set_text(if active {
         if en {
@@ -267,6 +428,8 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
     let workspace = info("tray:workspace", "分区")?;
     let session = info("tray:session", "本次: 00:00:00")?;
     let today = info("tray:today", "今日累计: 00:00:00")?;
+    let month = info("tray:month", "本月累计: 00:00:00")?;
+    let forecast = info("tray:forecast", "本月预估: 暂无数据")?;
     let start = info("tray:start", "开始计时")?;
     let pause = info("tray:pause", "暂停计时")?;
     let stop = info("tray:stop", "结束并保存")?;
@@ -276,7 +439,7 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
     let update = MenuItemBuilder::with_id("tray:update", "检查更新…").build(app)?;
     let quit = MenuItemBuilder::with_id("tray:quit", "退出 FishTime").build(app)?;
     let menu = MenuBuilder::new(app)
-        .items(&[&status, &workspace, &session, &today])
+        .items(&[&status, &workspace, &session, &today, &month, &forecast])
         .separator()
         .items(&[&start, &pause, &stop])
         .separator()
@@ -296,7 +459,7 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
             }
         }
     }
-    TrayIconBuilder::with_id("timer")
+    let tray = TrayIconBuilder::with_id("timer")
         .icon(tauri::image::Image::new_owned(pixels, 22, 22))
         .icon_as_template(true)
         .title("FishTime")
@@ -304,14 +467,18 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(true)
         .build(app)?;
+    configure_counter_font(&tray)?;
     app.manage(TrayState {
         snapshot: Mutex::new(None),
         last_frame: Mutex::new(None),
+        last_reminder: Mutex::new(None),
         update_version: Mutex::new(None),
         status,
         workspace,
         session,
         today,
+        month,
+        forecast,
         start,
         pause,
         stop,
@@ -343,6 +510,46 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn snapshot() -> Snapshot {
+        serde_json::from_value(serde_json::json!({"revision":1,"workspace":"default","language":"zh","state":"running","intervals":[{"start_ms":1000,"end_ms":null}],"daily_totals":{}})).unwrap()
+    }
+    #[test]
+    fn month_estimate_matches_calendar_day_average_and_clips_cross_month_time() {
+        let mut value = snapshot();
+        value.daily_totals.insert("2024-02-02".into(), 3600000);
+        value.daily_totals.insert("2024-02-29".into(), 3600000);
+        value.daily_totals.insert("2024-01-31".into(), 99999999);
+        let (month, forecast) = month_totals(&value, 10000, 0, 20000, "2024-02-15", 15, 29);
+        assert_eq!(month, 7209000);
+        assert_eq!(forecast, Some((3609000f64 / 15.0 * 29.0).round() as u64));
+        value.daily_totals.clear();
+        value.intervals[0].start_ms = -1000;
+        assert_eq!(
+            month_totals(&value, 10000, 0, 20000, "2024-02-29", 29, 29),
+            (10000, Some(10000))
+        );
+    }
+    #[test]
+    fn reminders_are_opt_in_and_honor_snooze_pause_and_presented_state() {
+        let mut value = snapshot();
+        assert_eq!(reminder_due(&value, 99999999), None);
+        value.reminder = Reminder {
+            enabled: true,
+            after_ms: 60000,
+            next_at_ms: None,
+            presented: false,
+        };
+        assert_eq!(reminder_due(&value, 60999), None);
+        assert_eq!(reminder_due(&value, 61000), Some((1000, 61000)));
+        value.reminder.next_at_ms = Some(120000);
+        assert_eq!(reminder_due(&value, 119999), None);
+        assert_eq!(reminder_due(&value, 120000), Some((1000, 120000)));
+        value.reminder.presented = true;
+        assert_eq!(reminder_due(&value, 120000), None);
+        value.reminder.presented = false;
+        value.state = "paused".into();
+        assert_eq!(reminder_due(&value, 120000), None);
+    }
 
     #[test]
     fn running_and_paused_segments_exclude_breaks() {

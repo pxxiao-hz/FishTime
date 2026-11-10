@@ -103,6 +103,7 @@
         <button id="settingsCloseBtn" class="settings-close" type="button" aria-label="关闭" title="关闭">×</button>
       </div>
       <div class="settings-body">
+        <div class="rest-reminder-settings"><label class="module-toggle"><input id="restReminderEnabled" type="checkbox"><span id="restReminderLabel">连续计时提醒</span></label><label class="reminder-interval" for="restReminderMinutes"><span id="restReminderMinutesLabel">提醒间隔（分钟）</span><input id="restReminderMinutes" type="number" min="1" max="1440" step="1" value="180"></label><p id="restReminderHint" class="settings-hint"></p><p id="restReminderError" class="settings-hint" role="status"></p></div>
         <div class="settings-row"><span class="settings-label" data-i18n="music.title">本地音乐库</span><button id="settingsMusicBtn" type="button" data-i18n="music.manage">管理曲目</button></div>
         <div class="settings-row"><span class="settings-label" data-i18n="updates.title">软件更新</span><span id="settingsUpdateBadge" class="tag-badge" hidden>有新版本</span><button id="settingsCheckUpdateBtn" type="button" data-i18n="updates.check">检查更新</button></div>
         <div class="update-preferences"><label class="module-toggle"><input id="updateAutoEnabled" type="checkbox" checked><span id="updateAutoLabel">自动检查更新</span></label><p id="updateAutoHint" class="settings-hint"></p><p id="updateLastChecked" class="settings-hint"></p><div id="updateSkippedRow" hidden><span id="updateSkippedText" class="settings-hint"></span><button id="updateRestoreBtn" class="text-button" type="button">恢复此版本提示</button></div></div>
@@ -241,6 +242,8 @@
       <div class="update-reminder-actions"><button id="updateLaterBtn" type="button" hidden>24 小时后提醒</button><button id="updateSkipBtn" type="button" hidden>跳过此版本</button></div><div class="edit-dialog-actions"><button id="updateManualBtn" type="button">手动下载</button><button id="updateCheckBtn" type="button">检查更新</button><button id="updateInstallBtn" type="button" hidden>下载并安装</button><button id="updateCloseBtn" type="button">关闭</button></div>
     </div>
   </div>
+  <div id="restReminderDialog" class="edit-dialog rest-reminder-dialog" role="dialog" aria-modal="true" aria-labelledby="restReminderTitle"><div class="edit-dialog-content"><h2 id="restReminderTitle">该休息一下了</h2><p id="restReminderMessage"></p><div class="edit-dialog-actions"><button id="restReminderLater" type="button">10 分钟后提醒</button><button id="restReminderPause" type="button">暂停休息</button><button id="restReminderFinish" type="button">结束并保存</button></div></div></div>
+  <script src="rest-reminder.js"></script>
   <script src="updater.js"></script>
   <script src="music-library.js"></script>
   <script src="main.js"></script>

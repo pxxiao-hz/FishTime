@@ -10,7 +10,7 @@ const path = require('node:path');
 (async () => {
   const root = path.resolve(__dirname, '..');
   const output = process.env.FISHTIME_SCREENSHOT_DIR || fs.mkdtempSync(path.join(os.tmpdir(), 'fishtime-ui-'));
-  const allowed = new Set(['index.html', 'main.js', 'updater.js', 'music-library.js', 'style.css', 'assets/bgm/track1.mp3']);
+  const allowed = new Set(['index.html', 'main.js', 'updater.js', 'music-library.js', 'rest-reminder.js', 'style.css', 'assets/bgm/track1.mp3']);
   const wave=Buffer.alloc(44+22050*10*2);wave.write('RIFF');wave.writeUInt32LE(wave.length-8,4);wave.write('WAVEfmt ',8);wave.writeUInt32LE(16,16);wave.writeUInt16LE(1,20);wave.writeUInt16LE(1,22);wave.writeUInt32LE(22050,24);wave.writeUInt32LE(44100,28);wave.writeUInt16LE(2,32);wave.writeUInt16LE(16,34);wave.write('data',36);wave.writeUInt32LE(wave.length-44,40);
   const server = http.createServer((request, response) => {
     const file = request.url.split('?')[0].slice(1) || 'index.html';
@@ -259,6 +259,35 @@ const path = require('node:path');
     assert.equal(await reminderPage.evaluate(()=>window.__checkCount),0);
     await reminderContext.close();
     console.log('PASS: automatic reminder, native badge request, 24-hour snooze, persistent skip/restore/opt-out, manual override, no automatic download');
+    const restContext=await browser.newContext({viewport:{width:1000,height:700}});
+    await restContext.addInitScript(()=>{
+      window.__restEvents={};window.__raised=0;
+      window.__TAURI__={core:{invoke:async(command)=>{
+        if(command==='app_version')return '5.5.0';if(command==='load_api_key')return '';if(command==='music_list')return {tracks:[]};
+        if(command==='show_reminder_window'){window.__raised+=1;return;}
+      }},event:{listen:async(name,callback)=>{window.__restEvents[name]=callback;}}};
+    });
+    const restPage=await restContext.newPage();let alerts=0;restPage.on('dialog',dialog=>{alerts+=1;dialog.dismiss();});restPage.on('pageerror',error=>errors.push(String(error)));
+    await restPage.clock.install({time:new Date('2026-11-10T10:00:00+08:00')});await restPage.goto(`http://127.0.0.1:${server.address().port}`);
+    await restPage.waitForFunction(()=>!!window.__restEvents['timer:rest-reminder']);
+    await restPage.locator('#startBtn').click();await restPage.clock.fastForward(4*3600000+1000);
+    const signal=()=>restPage.evaluate(()=>{const active=JSON.parse(localStorage.getItem('workTimerActiveSessionV1:default'));window.__restEvents['timer:rest-reminder']({payload:{workspace:'default',started_ms:Date.parse(active.segments.at(-1).start)}});});
+    await signal();assert.equal(await restPage.locator('#restReminderDialog').isVisible(),false);assert.equal(alerts,0);assert.equal(await restPage.evaluate(()=>window.__raised),0);
+    await restPage.locator('#stopBtn').click();await restPage.locator('#settingsBtn').click();
+    assert.equal(await restPage.locator('#restReminderEnabled').isChecked(),false);
+    await restPage.locator('#restReminderMinutes').fill('1');await restPage.locator('#restReminderMinutes').press('Tab');await restPage.locator('#restReminderEnabled').check();
+    await restPage.locator('#settingsCloseBtn').click();await restPage.locator('#startBtn').click();await restPage.clock.fastForward(61000);await signal();
+    await restPage.waitForSelector('#restReminderDialog:visible');await restPage.screenshot({path:path.join(output,'rest-reminder.png')});
+    await restPage.locator('#restReminderPause').click();assert.equal(await restPage.locator('body').getAttribute('data-timer-state'),'paused');
+    await restPage.reload();await restPage.waitForFunction(()=>!!window.__restEvents['timer:rest-reminder']);
+    assert.equal(await restPage.locator('#restReminderEnabled').isChecked(),true);assert.equal(await restPage.locator('#restReminderMinutes').inputValue(),'1');
+    await restPage.locator('#startBtn').click();await signal();assert.equal(await restPage.locator('#restReminderDialog').isVisible(),false);
+    await restPage.clock.fastForward(61000);await signal();await restPage.waitForSelector('#restReminderDialog:visible');
+    await restPage.locator('#restReminderLater').click();assert.equal(await restPage.locator('body').getAttribute('data-timer-state'),'running');
+    await signal();assert.equal(await restPage.locator('#restReminderDialog').isVisible(),false);
+    await restPage.clock.fastForward(600001);await signal();await restPage.waitForSelector('#restReminderDialog:visible');await restPage.locator('#restReminderFinish').click();
+    assert.equal(await restPage.locator('body').getAttribute('data-timer-state'),'idle');assert.equal(await restPage.locator('#todayRecordsBody .row-menu').count(),2);
+    await restContext.close();console.log('PASS: reminder off beyond four hours, custom threshold, pause/resume, persistence, snooze and finish/save');
     assert.deepEqual(errors,[]);
     console.log(`UI smoke tests passed. Screenshots: ${output}`);
   } finally {

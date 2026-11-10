@@ -9,7 +9,7 @@ const STORAGE_KEY_MODULES = "fishtime-modules";
 const STORAGE_KEY_BGM = "fishtime-bgm";
 const DEFAULT_WORKSPACE = "default";
 const DEFAULT_LANG = "zh";
-const APP_VERSION_FALLBACK = "5.4.0";
+const APP_VERSION_FALLBACK = "5.5.0";
 let trayReady = false;
 let trayRevision = Date.now();
 
@@ -51,7 +51,8 @@ function syncTray() {
     language: currentLang,
     state: active?.state || "idle",
     intervals,
-    daily_totals: dailyTotals
+    daily_totals: dailyTotals,
+    reminder: window.FishTimeRestReminder?.snapshot(active)||{enabled:false,after_ms:10800000,presented:false}
   } });
 }
 
@@ -101,7 +102,6 @@ function pauseAllSessions() {
 
 const chartHitboxes = {};
 let chartTooltipEl = null;
-const MAX_SESSION_MS = 4 * 60 * 60 * 1000; // 单次计时最长 4 小时
 const QUOTES_ZH = [
   "今日的投入，决定明天的高度。",
   "小步不停，终会抵达。",
@@ -1305,6 +1305,7 @@ function applyLocale(lang) {
   updateNavigation();
   window.FishTimeMusic?.refresh();
   window.FishTimeUpdater?.refresh();
+  window.FishTimeRestReminder?.refresh();
   updateBgmUI();
 }
 
@@ -1555,6 +1556,7 @@ function exportData() {
     currentWorkspace,
     workspaceData,
     preferences: {
+      restReminder: window.FishTimeRestReminder?.preferences || {enabled:false,minutes:180},
       autoUpdateChecks: window.FishTimeUpdater?.automaticEnabled ?? true,
       language: localStorage.getItem(STORAGE_KEY_LANG) || DEFAULT_LANG,
       page: localStorage.getItem(STORAGE_KEY_PAGE) || "home",
@@ -1649,6 +1651,7 @@ function importFullBackup(parsed) {
   saveWorkspaceMeta();
 
   const prefs = parsed.preferences || {};
+  if(prefs.restReminder&&typeof prefs.restReminder==='object')window.FishTimeRestReminder?.restore(prefs.restReminder);
   if(typeof prefs.autoUpdateChecks==='boolean')window.FishTimeUpdater?.setAutomaticEnabled(prefs.autoUpdateChecks);
   if (I18N[prefs.language]) localStorage.setItem(STORAGE_KEY_LANG, prefs.language);
   if (["home", "records", "stats"].includes(prefs.page)) localStorage.setItem(STORAGE_KEY_PAGE, prefs.page);
@@ -2962,11 +2965,6 @@ function setupTimers() {
           duration: formatDuration(activeTotalMs)
         });
       }
-      if (!active.warnedOverLimit && activeTotalMs > MAX_SESSION_MS) {
-        alert(t("alert.overLimit"));
-        active.warnedOverLimit = true;
-        saveActiveSession(active);
-      }
     }
 
     // 时长显示精确到分钟，因此统计和画布只需每分钟刷新一次，避免每秒重绘所有图表。
@@ -3982,6 +3980,7 @@ window.addEventListener("DOMContentLoaded", () => {
   render();
   setupEvents();
   setupTimers();
+  window.FishTimeRestReminder?.init({language:()=>currentLang,workspace:()=>currentWorkspace,session:loadActiveSession,save:saveActiveSession,sync:syncTray,invoke:tauriInvoke,pause:pauseSession,finish:()=>document.getElementById('stopBtn').click(),duration:formatDuration});
   let updateDraft = null;
   try { updateDraft = JSON.parse(localStorage.getItem("fishtime-update-draft") || "null"); } catch { /* Ignore malformed drafts. */ }
   if (updateDraft && updateDraft.workspace === currentWorkspace) {
